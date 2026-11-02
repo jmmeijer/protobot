@@ -1,7 +1,20 @@
 name: Build and publish
-on: [push, pull_request, workflow_dispatch]
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
 permissions:
   contents: read
+
+# Queue releases to the same branch rather than deploying concurrently.
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -15,12 +28,13 @@ jobs:
       - run: npm run build
       - run: npm test
       - uses: actions/upload-pages-artifact@v3
-        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         with:
           path: dist
+
   publish:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     needs: build
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     environment:
       name: github-pages
