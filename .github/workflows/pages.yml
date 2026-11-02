@@ -13,6 +13,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - run: npm test
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
         with:
