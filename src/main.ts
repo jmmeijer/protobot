@@ -10,6 +10,8 @@ interface Route { screen: Screen; level?: Level }
 const app = document.querySelector<HTMLElement>('#app');
 if (!app) throw new Error('ProtoBot root #app ontbreekt');
 const root: HTMLElement = app;
+// Vite's configured base URL keeps public assets working on GitHub Pages (/protobot/).
+const logoSrc = import.meta.env.BASE_URL + 'assets/protobot-logo.webp';
 let booting = !window.location.hash || window.location.hash === '#/';
 let currentRoute: Route = {screen: 'start'};
 let activeRun: RunState | null = null;
@@ -125,6 +127,7 @@ function map(level: Level, run?: RunState, preview = false): string {
 }
 function startScreen(): string {
   return '<main class="hero screen-enter"><div class="hero-copy">' +
+    '<div class="hero-brand"><img class="start-logo" src="' + logoSrc + '" alt="ProtoBot" width="1000" height="333" decoding="async"></div>' +
     '<div class="eyebrow"><span class="tiny-square"></span> MISSIECONTROLE / SECTOR 07</div>' +
     '<h1>De wereld heeft<br><em>jouw code</em> nodig.</h1>' +
     '<p>Bestuur ProtoBot, ontdek verlaten locaties en los puzzels op met programmeerblokken. Elke opdracht brengt je een stap verder.</p>' +
@@ -252,7 +255,7 @@ function resultScreen(level: Level): string {
 }
 function render() {
   if (booting) {
-    root.innerHTML = '<div class="boot"><div class="boot-logo">PROTO<span>BOT</span></div><div class="boot-bar"><i></i></div><p>SYSTEMEN INITIALISEREN...</p></div>';
+    root.innerHTML = '<div class="boot"><img class="boot-logo" src="' + logoSrc + '" alt="ProtoBot" width="1000" height="333" fetchpriority="high"><div class="boot-bar"><i></i></div><p>SYSTEMEN INITIALISEREN...</p></div>';
     return;
   }
   const route = currentRoute;

@@ -21,7 +21,7 @@ button:disabled {opacity:.45;cursor:not-allowed}
 .brand-mark {font-family:'Barlow Condensed',sans-serif;color:#0c2023;background:var(--cyan);font-size:36px;font-weight:900;line-height:1;width:46px;height:46px;display:grid;place-items:center;clip-path:polygon(0 0,86% 0,100% 14%,100% 100%,0 100%)}
 .brand-eye {position:absolute;transform:translate(8px,-8px);font:20px 'DM Sans',sans-serif}
 .brand-name {display:block;font:800 26px/.8 'Barlow Condensed',sans-serif;letter-spacing:1.6px}
-.brand-name>span,.boot-logo>span {color:var(--cyan)}
+.brand-name>span {color:var(--cyan)}
 .brand-name small {display:block;font:600 9px/2 'DM Sans',sans-serif;color:var(--muted);letter-spacing:3px}
 .topbar-right {display:flex;align-items:center;gap:38px}
 .system-state,.top-link,.eyebrow,.panel-top,.breadcrumb,.app-footer,.hero-meta,.mission-top,.mission-kicker,.available-tag,.done-tag,.map-legend,.rail-tag,.rail-summary,.rail-note,.game-hud span,.result-stats span,.future-notice,.side-caption,.end-line {font-size:11px;font-weight:700;letter-spacing:1.6px}
@@ -56,13 +56,15 @@ h1 em {font-style:normal}
 .screen-enter {animation:appear .38s ease-out both}
 @keyframes appear {from{opacity:.2;transform:translateY(10px)}to{opacity:1;transform:none}}
 .boot {min-height:100dvh;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:22px}
-.boot-logo {font:900 62px 'Barlow Condensed',sans-serif;letter-spacing:6px}
+.boot-logo {display:block;width:min(520px,88vw);height:auto;object-fit:contain;filter:drop-shadow(0 13px 20px #0008)}
 .boot p {letter-spacing:3px;font-size:10px;color:var(--cyan)}
 .boot-bar {width:230px;height:3px;background:#24413f;overflow:hidden}
 .boot-bar i {display:block;height:100%;background:var(--cyan);animation:loadbar .6s ease-out forwards}
 @keyframes loadbar {from{width:0}to{width:100%}}
 .hero {width:min(1320px,100%);margin:auto;padding:65px clamp(24px,5vw,70px);display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:38px;min-height:min(780px,calc(100dvh - 150px))}
 .hero-copy {position:relative;z-index:1}
+.hero-brand {margin-bottom:30px;max-width:500px}
+.start-logo {display:block;width:min(100%,460px);height:auto;filter:drop-shadow(0 12px 18px #0007)}
 .hero-copy h1 {font-size:clamp(56px,6.5vw,100px);max-width:670px}
 .hero-copy>p {font-size:16px;max-width:480px;margin-bottom:32px}
 .hero-meta {display:flex;gap:26px;flex-wrap:wrap;margin-top:55px;color:#718c8f;font-size:9px}
@@ -226,6 +228,7 @@ h1 em {font-style:normal}
   .hero-robot .bot-sprite {width:130px;height:145px}
   .orbit-one {width:260px}.orbit-two{width:350px}
   .hero-copy h1 {font-size:clamp(47px,10vw,75px)}
+  .hero-brand {max-width:380px;margin-bottom:22px}
   .hero-meta {margin-top:35px}
   .mission-grid,.briefing-layout,.play-layout {grid-template-columns:1fr}
   .briefing-map {order:-1}
