@@ -1,5 +1,5 @@
 # ProtoBot · Rover Protocol
-Technisch ontwerp 1.0 | 2 november 2026 | Basis: functioneel ontwerp 1.4
+Technisch ontwerp 1.1 | 2 november 2026 | Basis: functioneel ontwerp 1.4
 
 ## 1. Architectuur en scope
 Een leerling van 12–16 bouwt in de browser een programma dat ProtoBot over aaneengesloten terreintegels naar één eindtegel leidt. GitHub Pages levert HTML, scripts, levels en illustraties via HTTPS. Een missie heeft tijdens uitvoering geen serververbinding nodig. De eerste keer openen vereist netwerktoegang. Er zijn geen accounts.
@@ -28,7 +28,7 @@ Canvas schaalt op schermdichtheid. Gebruik compacte sprites voor vier richtingen
 Bewaar per level Blockly-JSON, levelrevisie en status onder een sleutel met prefix protobot:v1:. Schrijf na een bewerking en succesvolle afronding. Bewaar een eenmaal behaalde status tijdens opnieuw oefenen. Bij onleesbare data begint alleen het getroffen level opnieuw. Bij een onbekende revisie valideert de app eerst de blokken. Bij geweigerde opslag blijft de huidige sessie werken met een zichtbare melding.
 
 ## 6. Hosting, verificatie en oplevering
-Node 24 en het npm-lockbestand leggen de bouwomgeving vast. npm ci installeert afhankelijkheden. npm run build voert de typecontrole uit en schrijft dist/. Vite gebruikt /protobot/ als basis. Gebruik een hashroute zoals /protobot/#/level/rivieroever, zodat herladen de bestaande indexpagina opent. Bundel Blockly, taalbestanden en benodigde media met de site. De Pages-workflow publiceert alleen bij een handmatige start vanaf main met Pages ingesteld op GitHub Actions.
+Node.js 26 LTS en het npm-lockbestand leggen de bouwomgeving vast. npm ci installeert afhankelijkheden. npm run build voert de typecontrole uit en schrijft dist/. Vite gebruikt /protobot/ als basis. Gebruik een hashroute zoals /protobot/#/level/rivieroever, zodat herladen de bestaande indexpagina opent. Bundel Blockly, taalbestanden en benodigde media met de site. De Pages-workflow publiceert alleen bij een handmatige start vanaf main met Pages ingesteld op GitHub Actions.
 Test de interpreter zonder browser: draai op de plaats, geneste lussen, lege lus, water/lava, muur, stap 500 en een extra instructie na de eindtegel. Vergelijk dezelfde uitvoering in stapmodus en op volle snelheid. Controleer alle kaarten met hun referentieprogramma.
 Controleer in een browser een directe levellink, verversen na bewerken, geblokkeerde opslag en twee varianten waarvan één faalt. Test in een venster van 360 px én op een echte telefoon een geneste als/anders-tak met tikbediening. Test dezelfde opdracht uitsluitend met het toetsenbord. Koppel deze controles aan A01–A14 uit het functioneel ontwerp.
 Eerste speelbare oplevering: radiomast met bewegen en draaien, daarna rivieroever met een terreinconditie op twee kaarten. Pas na deze praktijktest volgen de overige acht levels en definitieve sprites.
