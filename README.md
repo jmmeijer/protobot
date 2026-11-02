@@ -33,7 +33,7 @@ Lees [het technisch ontwerp](docs/technisch-ontwerp.md) en [het schermentraject]
 
 ## Publiceren
 
-De workflow draait bij push/pull request een build en tests. Kies GitHub Actions als Pages-bron in de repositoryinstellingen en start de Pages-workflow handmatig vanaf `main` om te publiceren.
+De workflow bouwt en test iedere pull request gericht op `main`. **Elke push naar `main` (waaronder een merge) publiceert na geslaagde build en tests automatisch de inhoud van `dist/` naar GitHub Pages.** Handmatig starten via `workflow_dispatch` op `main` blijft ook mogelijk. Stel onder Settings → Pages de bron in op **GitHub Actions**; er hoeft geen map te worden geselecteerd.
 
 ## Kaartlab (grafisch prototype)
 
