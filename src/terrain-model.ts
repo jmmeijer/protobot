@@ -2,7 +2,6 @@
 export const terrainNames = ['grass', 'stone', 'dirt', 'sand', 'water', 'lava'] as const;
 export type TerrainName = (typeof terrainNames)[number];
 export type TerrainMap = TerrainName[][];
-export type Side = 'north' | 'east' | 'south' | 'west';
 
 export const labels: Record<TerrainName, string> = {
   grass: 'Gras', stone: 'Steen', dirt: 'Aarde',
@@ -33,18 +32,3 @@ export const demos: Record<string, TerrainMap> = {
 };
 
 export const cloneMap = (map: TerrainMap): TerrainMap => map.map(row => [...row]);
-/** Return the cardinal neighbours that have a different terrain. */
-export function transitionNeighbours(map: TerrainMap, x: number, y: number): Partial<Record<Side, TerrainName>> {
-  const tile = map[y]?.[x];
-  if (!tile) return {};
-  const result: Partial<Record<Side, TerrainName>> = {};
-  const candidates: readonly [Side, number, number][] = [
-    ['north', x, y - 1], ['east', x + 1, y],
-    ['south', x, y + 1], ['west', x - 1, y]
-  ];
-  for (const [side, nx, ny] of candidates) {
-    const neighbour = map[ny]?.[nx];
-    if (neighbour && neighbour !== tile) result[side] = neighbour;
-  }
-  return result;
-}

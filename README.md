@@ -41,8 +41,10 @@ Open de app en kies op het missieoverzicht **KAARTLAB: TEST TERREINEN**, of ga r
 
 - Eén WebP texture atlas (`src/assets/terrain-atlas.webp`) met zes basissoorten: gras, steen, aarde, zand, water en lava. De pixels worden op de gewenste schermgrootte getekend.
 - Responsieve Canvas-renderer met `devicePixelRatio`, zonder beeldvervaging (`imageSmoothingEnabled = false`).
-- Automatische, voorlopig procedurale overgangen aan vier randen van verschillende terreintypen. Geen definitief 47-tile autotile-systeem.
+- **8-neighbor autotiling** met 47 herbruikbare pixelmaskers voor randen en hoeken. Via een visuele terreinprioriteit wordt iedere grens maar aan één kant als overlay getekend, zodat dubbele randen verdwijnen.
 - Terreinen schilderen door eerst een type en daarna een vak te kiezen; de raster- en overgangslaag zijn aan/uit te zetten.
 - Twee voorbeeldkaarten en een transparante top-down robotafbeelding om schaal en rotatie te beoordelen.
 
-De atlas is geoptimaliseerde **lossless WebP** (palet beperkt voor pixelart). De originele gegenereerde illustraties blijven buiten de bundle; definitieve varianten, nette hoekovergangen en robuuste keyboardbewerking volgen later.
+De atlas is geoptimaliseerde **lossless WebP** (palet beperkt voor pixelart). De originele gegenereerde illustraties blijven buiten de bundle; definitieve handgetekende maskers, extra terreindecoraties en robuuste keyboardbewerking volgen later.
+
+Meer technische details: [autotiling en overgangsmaskers](docs/autotiling.md).

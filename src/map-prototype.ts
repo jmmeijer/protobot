@@ -1,8 +1,9 @@
 import './map-prototype.css';
 import {
-  atlasCoordinates, cloneMap, demos, labels, terrainNames, transitionNeighbours,
-  type Side, type TerrainMap, type TerrainName
+  atlasCoordinates, cloneMap, demos, labels, terrainNames,
+  type TerrainMap, type TerrainName
 } from './terrain-model';
+import { autotileLayers, makeAutotileMask, MASK_RESOLUTION } from './autotile';
 
 const ATLAS_TILE_PX = 128;
 const MAX_CANVAS_WIDTH = 740;
@@ -56,46 +57,40 @@ export function mapPrototypeMarkup(): string {
         </div>
       </aside>
     </div>
-    <div class="maplab-explainer"><strong>Techniek:</strong> één WebP-atlas met zes basistegels, Canvas <code>drawImage()</code>, vier-burenovergangen en schaling op basis van de beschikbare breedte en <code>devicePixelRatio</code>. Voorlopig tekenen we de overgangen met pixelachtige clipping; handgemaakte hoeken en varianten volgen eventueel later.</div>
+    <div class="maplab-explainer"><strong>Techniek:</strong> één WebP-atlas met zes basistegels, Canvas <code>drawImage()</code>, 8-buren-autotiling en schaling op basis van de beschikbare breedte en <code>devicePixelRatio</code>. Herbruikbare 47-blob-maskers bepalen randen én hoeken. Per grens tekent alleen het lagere terrein een overlay van zijn hogere buur, waardoor dubbele randen verdwijnen.</div>
   </main>`;
 }
 
-function random01(seed: number): number {
-  // Stable variation: the same edge looks the same after resize or repaint.
-  let n = Math.imul(seed ^ 0x45d9f3b, 0x45d9f3b);
-  n = Math.imul(n ^ (n >>> 16), 0x45d9f3b);
-  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
-}
 function texture(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, terrain: TerrainName, x: number, y: number, size: number) {
   const [col, row] = atlasCoordinates[terrain];
   ctx.drawImage(atlas, col * ATLAS_TILE_PX, row * ATLAS_TILE_PX, ATLAS_TILE_PX, ATLAS_TILE_PX, x, y, size, size);
 }
 
-/** Render neighbouring terrain into a jagged strip at the edge of the current cell. */
-function transition(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, terrain: TerrainName,
-  x: number, y: number, size: number, side: Side, gx: number, gy: number) {
-  const slices = 12;
-  const seed = (gx + 21) * 571 + (gy + 31) * 149 + ['north', 'east', 'south', 'west'].indexOf(side) * 67;
-  const depths = Array.from({ length: slices + 1 }, (_, i) => size * (0.075 + random01(seed + i * 439) * 0.095));
-  ctx.save();
-  ctx.beginPath();
-  if (side === 'north') {
-    ctx.moveTo(x, y); ctx.lineTo(x + size, y);
-    for (let i = slices; i >= 0; i--) ctx.lineTo(x + size * i / slices, y + depths[i]);
-  } else if (side === 'south') {
-    ctx.moveTo(x, y + size); ctx.lineTo(x + size, y + size);
-    for (let i = slices; i >= 0; i--) ctx.lineTo(x + size * i / slices, y + size - depths[i]);
-  } else if (side === 'west') {
-    ctx.moveTo(x, y); ctx.lineTo(x, y + size);
-    for (let i = slices; i >= 0; i--) ctx.lineTo(x + depths[i], y + size * i / slices);
-  } else {
-    ctx.moveTo(x + size, y); ctx.lineTo(x + size, y + size);
-    for (let i = slices; i >= 0; i--) ctx.lineTo(x + size - depths[i], y + size * i / slices);
+/** The atlas is textured first, then clipped by a 32px binary mask. This avoids
+ * anti-aliased Canvas clip edges and preserves crisp pixel art when scaled.
+ */
+function drawAutotileOverlay(
+  ctx: CanvasRenderingContext2D, atlas: HTMLImageElement,
+  maskCtx: CanvasRenderingContext2D, maskData: ImageData,
+  maskCanvas: HTMLCanvasElement, overlayCtx: CanvasRenderingContext2D,
+  overlayCanvas: HTMLCanvasElement, terrain: TerrainName, mask: number,
+  gridX: number, gridY: number, x: number, y: number, tileSize: number
+) {
+  const pixels = makeAutotileMask(mask, gridX, gridY, terrain);
+  for (let i = 0; i < pixels.length; i++) {
+    const at = i * 4;
+    maskData.data[at] = 255;
+    maskData.data[at + 1] = 255;
+    maskData.data[at + 2] = 255;
+    maskData.data[at + 3] = pixels[i] ? 255 : 0;
   }
-  ctx.closePath();
-  ctx.clip();
-  texture(ctx, atlas, terrain, x, y, size);
-  ctx.restore();
+  maskCtx.putImageData(maskData, 0, 0);
+  overlayCtx.clearRect(0, 0, ATLAS_TILE_PX, ATLAS_TILE_PX);
+  texture(overlayCtx, atlas, terrain, 0, 0, ATLAS_TILE_PX);
+  overlayCtx.globalCompositeOperation = 'destination-in';
+  overlayCtx.drawImage(maskCanvas, 0, 0, ATLAS_TILE_PX, ATLAS_TILE_PX);
+  overlayCtx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(overlayCanvas, x, y, tileSize, tileSize);
 }
 
 export function mountMapPrototype() {
@@ -109,6 +104,20 @@ export function mountMapPrototype() {
   if (!ctx) { status.textContent = 'Canvas wordt niet ondersteund in deze browser.'; return; }
   const atlas = new Image();
   const robot = new Image();
+  // Reusable offscreen buffers for stable nearest-neighbour transition masks.
+  const maskCanvas = document.createElement('canvas');
+  maskCanvas.width = maskCanvas.height = MASK_RESOLUTION;
+  const maskCtx = maskCanvas.getContext('2d');
+  const overlayCanvas = document.createElement('canvas');
+  overlayCanvas.width = overlayCanvas.height = ATLAS_TILE_PX;
+  const overlayCtx = overlayCanvas.getContext('2d');
+  if (!maskCtx || !overlayCtx) {
+    status.textContent = 'De Canvas-overgangen worden niet ondersteund in deze browser.';
+    return;
+  }
+  maskCtx.imageSmoothingEnabled = false;
+  overlayCtx.imageSmoothingEnabled = false;
+  const maskData = maskCtx.createImageData(MASK_RESOLUTION, MASK_RESOLUTION);
   let canvasWidth = 0;
   let tileSize = 0;
   let isActive = true;
@@ -136,11 +145,16 @@ export function mountMapPrototype() {
       texture(ctx, atlas, map[y][x], x * tileSize, y * tileSize, tileSize);
     }
     if (transitionsVisible) {
+      // 8-way blob masks: only higher-priority neighbours bleed into the base
+      // cell. Each interface is rendered from one side, never duplicated.
       for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
-        const neighbours = transitionNeighbours(map, x, y);
-        for (const side of ['north', 'east', 'south', 'west'] as const) {
-          const terrain = neighbours[side];
-          if (terrain) transition(ctx, atlas, terrain, x * tileSize, y * tileSize, tileSize, side, x, y);
+        const layers = autotileLayers(map, x, y);
+        for (const layer of layers) {
+          drawAutotileOverlay(
+            ctx, atlas, maskCtx, maskData, maskCanvas, overlayCtx,
+            overlayCanvas, layer.terrain, layer.mask,
+            x, y, x * tileSize, y * tileSize, tileSize
+          );
         }
       }
     }
