@@ -1,0 +1,30 @@
+.maplab-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
+.maplab-display{overflow:hidden}
+.maplab-canvas-frame{padding:16px;display:flex;justify-content:center;align-items:center;background:radial-gradient(circle,#2b4646,#101b20);width:100%;min-height:280px;box-sizing:border-box}
+#maplab-canvas{display:block;max-width:100%;height:auto;image-rendering:pixelated;cursor:crosshair;touch-action:manipulation;box-shadow:0 16px 40px #0009;border:1px solid #608782}
+.maplab-status{padding:12px 20px;color:#9ecac8;font-size:12px;min-height:42px}
+.maplab-legend{padding:15px 20px;border-top:1px solid #304246;display:flex;gap:20px;flex-wrap:wrap;color:#a5b7b7;font-size:11px}
+.maplab-dot{display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:baseline}
+.maplab-safe{background:#6c9646}.maplab-water{background:#0b9dcf}.maplab-lava{background:#f56e23}
+.maplab-side-body{padding:23px}
+.maplab-side-body h2{font-size:23px;margin:0 0 10px}
+.maplab-side-body p{font-size:12px;line-height:1.65;margin:0 0 17px}
+.maplab-brushes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-bottom:25px}
+.maplab-brush{display:flex;align-items:center;gap:9px;min-height:43px;text-align:left;padding:8px;border:1px solid #3e575c;border-radius:5px;color:#daeaea;background:#162629;font-size:12px;font-weight:700}
+.maplab-brush.is-selected{border-color:#7cf4d9;box-shadow:inset 0 0 0 1px #7cf4d98a;color:#7cf4d9}
+.maplab-brush:hover{background:#253c3f}
+.terrain-icon{width:25px;height:25px;flex:none;border:1px solid #ffffff25;image-rendering:pixelated;background-size:cover}
+.terrain-grass{background-color:#638b3c}.terrain-stone{background-color:#77767a}.terrain-dirt{background-color:#99512f}
+.terrain-sand{background-color:#efbb6c}.terrain-water{background-color:#067bc1}.terrain-lava{background-color:#e65a1a}
+.maplab-presets{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
+.maplab-presets .btn{padding:11px 12px;font-size:10px}
+.maplab-toggle{display:flex;align-items:center;gap:11px;margin-bottom:15px;font-size:12px;cursor:pointer;color:#c2d5d5}
+.maplab-toggle input{accent-color:#7cf4d9;width:16px;height:16px}
+.maplab-robot{display:flex;align-items:center;gap:7px;margin:24px 0 18px}
+.maplab-robot span{margin-right:auto;color:#91abad;font-size:10px;font-weight:700;letter-spacing:1px}
+.maplab-robot .icon-btn{font-size:25px}
+.maplab-side-body .maplab-note{border-top:1px solid #304246;padding-top:16px;font-size:11px;color:#849d9e;margin-bottom:0}
+.maplab-explainer{margin-top:22px;padding:22px 25px;border:1px solid #34494d;background:#15272a99;color:#a9c3c1;font-size:12px;line-height:1.75}
+.maplab-explainer strong{color:#dbeaea}
+@media(max-width:980px){.maplab-layout{grid-template-columns:1fr}.maplab-controls{max-width:none}.maplab-brushes{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:550px){.maplab-brushes{grid-template-columns:repeat(2,1fr)}.maplab-side-body{padding:15px}.maplab-legend{gap:10px}}

@@ -34,3 +34,15 @@ Lees [het technisch ontwerp](docs/technisch-ontwerp.md) en [het schermentraject]
 ## Publiceren
 
 De workflow draait bij push/pull request een build en tests. Kies GitHub Actions als Pages-bron in de repositoryinstellingen en start de Pages-workflow handmatig vanaf `main` om te publiceren.
+
+## Kaartlab (grafisch prototype)
+
+Open de app en kies op het missieoverzicht **KAARTLAB: TEST TERREINEN**, of ga rechtstreeks naar `#/map-prototype`. Het Kaartlab is een afzonderlijke testomgeving en verandert bestaande missies of programma's niet.
+
+- Eén WebP texture atlas (`src/assets/terrain-atlas.webp`) met zes basissoorten: gras, steen, aarde, zand, water en lava. De pixels worden op de gewenste schermgrootte getekend.
+- Responsieve Canvas-renderer met `devicePixelRatio`, zonder beeldvervaging (`imageSmoothingEnabled = false`).
+- Automatische, voorlopig procedurale overgangen aan vier randen van verschillende terreintypen. Geen definitief 47-tile autotile-systeem.
+- Terreinen schilderen door eerst een type en daarna een vak te kiezen; de raster- en overgangslaag zijn aan/uit te zetten.
+- Twee voorbeeldkaarten en een transparante top-down robotafbeelding om schaal en rotatie te beoordelen.
+
+De atlas is geoptimaliseerde **lossless WebP** (palet beperkt voor pixelart). De originele gegenereerde illustraties blijven buiten de bundle; definitieve varianten, nette hoekovergangen en robuuste keyboardbewerking volgen later.
