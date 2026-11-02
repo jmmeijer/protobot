@@ -1,11 +1,12 @@
 import './styles.css';
+import { mapPrototypeMarkup, mountMapPrototype, unmountMapPrototype } from './map-prototype';
 import {
   commands, executeStep, initialState, levelById, levels,
   type Block, type Command, type Level, type RunState
 } from './game';
 import { loadLevel, saveLevel, storageWarning } from './storage';
 
-type Screen = 'start' | 'levels' | 'briefing' | 'editor' | 'play' | 'result';
+type Screen = 'start' | 'levels' | 'briefing' | 'editor' | 'play' | 'result' | 'map';
 interface Route { screen: Screen; level?: Level }
 const app = document.querySelector<HTMLElement>('#app');
 if (!app) throw new Error('ProtoBot root #app ontbreekt');
@@ -52,6 +53,7 @@ function routeFor(level: Level, screen: Screen): string {
 function readRoute(): Route {
   const parts = window.location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   if (parts[0] === 'levels') return {screen: 'levels'};
+  if (parts[0] === 'map-prototype') return {screen: 'map'};
   if (parts[0] === 'level') {
     const level = levelById(parts[1] ?? '');
     if (!level) return {screen:'levels'};
@@ -67,6 +69,7 @@ function stopTimers() {
   timer = undefined; resultTimer = undefined;
 }
 function onRouteChange() {
+  unmountMapPrototype();
   stopTimers();
   currentRoute = readRoute();
   if (currentRoute.level && (currentRoute.level.id !== activeLevelId || currentRoute.screen === 'play')) {
@@ -151,7 +154,8 @@ function levelsScreen(): string {
       '<h2>' + escapeText(level.title) + '</h2><p>' + escapeText(level.story) + '</p>' +
       '<button class="btn secondary" data-action="open-level" data-value="' + level.id + '">BEKIJK OPDRACHT ' + icon('next') + '</button></div></article>'
     ).join('') + '</div><div class="future-notice">' + icon('lock') +
-    '<div><strong>Nog 8 missies in voorbereiding</strong><span>Nieuwe uitdagingen worden later toegevoegd.</span></div></div></main>';
+    '<div><strong>Nog 8 missies in voorbereiding</strong><span>Nieuwe uitdagingen worden later toegevoegd.</span></div></div>' +
+    '<a class="btn secondary" href="#/map-prototype" style="margin-top:23px">KAARTLAB: TEST TERREINEN ' + icon('map') + '</a></main>';
 }
 function crumb(level: Level, step: string): string {
   return '<nav class="breadcrumb" aria-label="Navigatie"><a href="#/levels">MISSIES</a><span>/</span><a href="' +
@@ -262,6 +266,7 @@ function render() {
   let body = '';
   if (route.screen === 'start') body = startScreen();
   else if (route.screen === 'levels') body = levelsScreen();
+  else if (route.screen === 'map') body = mapPrototypeMarkup();
   else if (route.level) {
     if (route.screen === 'briefing') body = briefingScreen(route.level);
     if (route.screen === 'editor') body = editorScreen(route.level);
@@ -269,6 +274,7 @@ function render() {
     if (route.screen === 'result') body = resultScreen(route.level);
   }
   root.innerHTML = header() + (storageWarning() ? '<div class="storage-warning" role="alert">' + escapeText(storageWarning()) + '</div>' : '') + body + footer();
+  if (route.screen === 'map') mountMapPrototype();
 }
 function tick() {
   const level = currentRoute.level;
