@@ -1,13 +1,23 @@
 import './level-canvas.css';
-import { initialState, levelById, type Direction, type Level, type RunState } from './game';
+import { initialState, levelById, type Level, type RunState } from './game';
 import { createTerrainPainter, levelTerrain } from './terrain-canvas';
 import type { TerrainMap, TerrainName } from './terrain-model';
+import { poseAt, restingPose, type RobotPose } from './robot-motion';
 
 const ATLAS_URL = new URL('./assets/terrain-atlas.webp', import.meta.url).href;
 const ROBOT_URL = new URL('./assets/protobot-topdown.webp', import.meta.url).href;
 type Assets = { atlas: HTMLImageElement | null; robot: HTMLImageElement | null };
 let assetsPromise: Promise<Assets> | undefined;
 let cleanup: (() => void) | undefined;
+
+interface BoardController {
+  animate(from: RunState, to: RunState, duration: number): Promise<void>;
+  pause(): void;
+  resume(): void;
+  snap(run: RunState): void;
+  dispose(): void;
+}
+const boards = new Map<string, BoardController>();
 
 function loadImage(src: string): Promise<HTMLImageElement | null> {
   return new Promise(resolve => {
@@ -68,13 +78,23 @@ function drawGoal(context: CanvasRenderingContext2D, level: Level, size: number)
   context.stroke();
   context.restore();
 }
-const rotation: Record<Direction, number> = { N: 0, E: Math.PI / 2, S: Math.PI, W: Math.PI * 1.5 };
-
-function drawRobot(context: CanvasRenderingContext2D, run: RunState,
+/** Draw only the animated layer; terrain and goal are cached separately. */
+function drawRobot(context: CanvasRenderingContext2D, pose: RobotPose,
   size: number, image: HTMLImageElement | null) {
   context.save();
-  context.translate((run.x + .5) * size, (run.y + .5) * size);
-  context.rotate(rotation[run.direction]);
+  context.translate((pose.x + .5) * size, (pose.y + .5) * size);
+  context.fillStyle = 'rgba(3,15,19,.35)';
+  context.beginPath();
+  context.ellipse(0, size * .28, size * .28, size * .11, 0, 0, Math.PI * 2);
+  context.fill();
+  if (pose.pulse > 0.001) {
+    context.strokeStyle = 'rgba(118,255,233,' + (pose.pulse * .75) + ')';
+    context.lineWidth = Math.max(1.5, size * .025);
+    context.beginPath();
+    context.arc(0, 0, size * (.30 + pose.pulse * .22), 0, Math.PI * 2);
+    context.stroke();
+  }
+  context.rotate(pose.angle);
   const side = size * .84;
   if (image) {
     context.drawImage(image, -side / 2, -side / 2, side, side);
@@ -109,8 +129,9 @@ function sizeFor(canvas: HTMLCanvasElement, level: Level): number {
 }
 
 /**
- * Mount all mission previews and playing-field canvases.
- * ResizeObserver and image-load callbacks are disposed before each screen redraw.
+ * A persistent Canvas is mounted once per screen. Terrain, walls and target
+ * are cached in a backing canvas and only the robot layer changes per frame.
+ * The screen is never replaced while a Blockly instruction is executed.
  */
 export function mountLevelCanvases(
   root: HTMLElement, currentRun: (level: Level) => RunState | undefined
@@ -118,7 +139,8 @@ export function mountLevelCanvases(
   unmountLevelCanvases();
   const elements = [...root.querySelectorAll<HTMLCanvasElement>('canvas[data-level-board]')];
   if (!elements.length) return;
-  const instances: Array<() => void> = [];
+  const instances: BoardController[] = [];
+
   for (const canvas of elements) {
     const level = levelById(canvas.dataset.levelId ?? '');
     if (!level) continue;
@@ -126,51 +148,163 @@ export function mountLevelCanvases(
     if (!context) continue;
     const painter = createTerrainPainter();
     const terrainMap = levelTerrain(level.tiles);
+    const background = document.createElement('canvas');
+    const backgroundContext = background.getContext('2d');
+    if (!backgroundContext) continue;
     let active = true;
     let loaded: Assets | null = null;
-    const draw = () => {
+    let pose = restingPose(currentRun(level) ?? initialState(level));
+    let tileSize = 0;
+    let dpr = 1;
+
+    interface MovingFrame {
+      from: RunState;
+      to: RunState;
+      duration: number;
+      elapsed: number;
+      lastTime: number | null;
+      frameId: number | null;
+      paused: boolean;
+      resolve: () => void;
+    }
+    let moving: MovingFrame | null = null;
+
+    const paint = () => {
+      if (!active || !canvas.isConnected || !tileSize) return;
+      // Restore cached static map; do not regenerate its 47 autotile masks.
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.imageSmoothingEnabled = false;
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(background, 0, 0);
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      context.imageSmoothingEnabled = false;
+      drawRobot(context, pose, tileSize, loaded?.robot ?? null);
+    };
+
+    const rebuildBackground = () => {
       if (!active || !canvas.isConnected) return;
       const width = sizeFor(canvas, level);
       if (width <= 0) return;
       const cols = level.tiles[0].length;
       const rows = level.tiles.length;
-      const size = width / cols;
-      const height = rows * size;
-      const dpr = Math.min(window.devicePixelRatio || 1, 3);
-      const deviceWidth = Math.max(1, Math.round(width * dpr));
-      const deviceHeight = Math.max(1, Math.round(height * dpr));
-      if (canvas.width !== deviceWidth || canvas.height !== deviceHeight) {
-        canvas.width = deviceWidth;
-        canvas.height = deviceHeight;
+      tileSize = width / cols;
+      const height = rows * tileSize;
+      dpr = Math.min(window.devicePixelRatio || 1, 3);
+      const pixelWidth = Math.max(1, Math.round(width * dpr));
+      const pixelHeight = Math.max(1, Math.round(height * dpr));
+      if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+        canvas.width = pixelWidth;
+        canvas.height = pixelHeight;
       }
       canvas.style.width = width + 'px';
       canvas.style.height = height + 'px';
-      context.setTransform(dpr, 0, 0, dpr, 0, 0);
-      context.imageSmoothingEnabled = false;
-      context.clearRect(0, 0, width, height);
-
-      if (loaded?.atlas) painter.draw(context, loaded.atlas, terrainMap, size);
-      else fallbackTerrain(context, terrainMap, size);
-
-      // Logical walls remain impassable even though their base texture is stone.
+      background.width = pixelWidth;
+      background.height = pixelHeight;
+      backgroundContext.setTransform(dpr, 0, 0, dpr, 0, 0);
+      backgroundContext.imageSmoothingEnabled = false;
+      backgroundContext.clearRect(0, 0, width, height);
+      if (loaded?.atlas) painter.draw(backgroundContext, loaded.atlas, terrainMap, tileSize);
+      else fallbackTerrain(backgroundContext, terrainMap, tileSize);
+      // These objects are static during a run. Robot movement cannot change them.
       for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
-        if (level.tiles[y][x] === 'wall') drawWall(context, x, y, size);
+        if (level.tiles[y][x] === 'wall') drawWall(backgroundContext, x, y, tileSize);
       }
-      drawGoal(context, level, size);
-      drawRobot(context, currentRun(level) ?? initialState(level), size, loaded?.robot ?? null);
+      drawGoal(backgroundContext, level, tileSize);
+      paint();
     };
-    const observer = new ResizeObserver(draw);
+
+    const frameTick = (time: number) => {
+      const frame = moving;
+      if (!frame || frame.paused || !active) return;
+      if (frame.lastTime !== null) {
+        frame.elapsed += Math.max(0, Math.min(80, time - frame.lastTime));
+      }
+      frame.lastTime = time;
+      const fraction = Math.min(1, frame.elapsed / frame.duration);
+      pose = poseAt(frame.from, frame.to, fraction);
+      paint();
+      if (fraction >= 1) {
+        moving = null;
+        pose = restingPose(frame.to);
+        paint();
+        frame.resolve();
+      } else {
+        frame.frameId = requestAnimationFrame(frameTick);
+      }
+    };
+
+    const cancel = () => {
+      if (!moving) return;
+      const frame = moving;
+      moving = null;
+      if (frame.frameId !== null) cancelAnimationFrame(frame.frameId);
+      frame.resolve(); // settle awaiting controller; its generation token rejects stale results
+    };
+
+    const instance: BoardController = {
+      animate(from, to, duration) {
+        cancel();
+        if (!active) return Promise.resolve();
+        pose = restingPose(from);
+        paint();
+        if (duration <= 0) {
+          pose = restingPose(to);
+          paint();
+          return Promise.resolve();
+        }
+        return new Promise(resolve => {
+          moving = { from, to, duration, elapsed: 0, lastTime: null,
+            frameId: requestAnimationFrame(frameTick), paused: false, resolve };
+        });
+      },
+      pause() {
+        if (!moving || moving.paused) return;
+        moving.paused = true;
+        if (moving.frameId !== null) cancelAnimationFrame(moving.frameId);
+        moving.frameId = null;
+        moving.lastTime = null;
+        // Retain the exact fractional pose until the user resumes.
+      },
+      resume() {
+        if (!moving || !moving.paused) return;
+        moving.paused = false;
+        moving.lastTime = null;
+        moving.frameId = requestAnimationFrame(frameTick);
+      },
+      snap(run) {
+        cancel();
+        pose = restingPose(run);
+        paint();
+      },
+      dispose() {
+        active = false;
+        cancel();
+      }
+    };
+    boards.set(level.id, instance);
+    instances.push(instance);
+    const observer = new ResizeObserver(rebuildBackground);
     if (canvas.parentElement) observer.observe(canvas.parentElement);
-    draw();
+    rebuildBackground();
     void loadAssets().then(assets => {
       if (!active) return;
       loaded = assets;
-      draw();
+      rebuildBackground();
     });
-    instances.push(() => { active = false; observer.disconnect(); });
+    const originalDispose = instance.dispose.bind(instance);
+    instance.dispose = () => { observer.disconnect(); originalDispose(); };
   }
-  cleanup = () => { for (const dispose of instances) dispose(); };
+  cleanup = () => { for (const instance of instances) instance.dispose(); boards.clear(); };
 }
+
+/** The animation Promise resolves at the end of the tween or on cancellation. */
+export function animateLevelRun(levelId: string, from: RunState, to: RunState,
+  duration: number): Promise<void> {
+  return boards.get(levelId)?.animate(from, to, duration) ?? Promise.resolve();
+}
+export function pauseLevelAnimation(levelId: string): void { boards.get(levelId)?.pause(); }
+export function resumeLevelAnimation(levelId: string): void { boards.get(levelId)?.resume(); }
+export function snapLevelRun(levelId: string, run: RunState): void { boards.get(levelId)?.snap(run); }
 
 export function unmountLevelCanvases(): void {
   cleanup?.();
