@@ -46,6 +46,31 @@ function fallbackTerrain(context: CanvasRenderingContext2D, map: TerrainMap, siz
     context.fillRect(x * size, y * size, size, size);
   }
 }
+/** Keep the survey grid one CSS pixel wide, including on small mission previews. */
+function drawSurveyGrid(context: CanvasRenderingContext2D, columns: number, rows: number, tileSize: number) {
+  const width = columns * tileSize;
+  const height = rows * tileSize;
+  context.save();
+  context.beginPath();
+  context.rect(0.5, 0.5, width - 1, height - 1);
+  for (let col = 1; col < columns; col++) {
+    context.moveTo(col * tileSize, 0);
+    context.lineTo(col * tileSize, height);
+  }
+  for (let row = 1; row < rows; row++) {
+    context.moveTo(0, row * tileSize);
+    context.lineTo(width, row * tileSize);
+  }
+  // A narrow dark keyline keeps cyan legible on sand, foam and bright lava.
+  context.lineWidth = 2.5;
+  context.strokeStyle = 'rgba(4, 31, 39, 0.68)';
+  context.stroke();
+  context.lineWidth = 1;
+  context.strokeStyle = 'rgba(88, 242, 241, 0.84)';
+  context.stroke();
+  context.restore();
+}
+
 function drawWall(context: CanvasRenderingContext2D, x: number, y: number, size: number) {
   const pad = size * 0.11;
   context.fillStyle = '#171f24b8';
@@ -206,6 +231,7 @@ export function mountLevelCanvases(
       context.drawImage(background, 0, 0, canvas.width, canvas.height);
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
       context.imageSmoothingEnabled = false;
+      drawSurveyGrid(context, level.tiles[0].length, level.tiles.length, tileSize);
       drawRobot(context, pose, tileSize, loaded?.robot ?? null);
     };
 
