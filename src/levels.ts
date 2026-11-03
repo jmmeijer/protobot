@@ -21,8 +21,8 @@ function blocks(from:number): BlockType[] {
   if(from>=10)available.push('pb_on_goal');
   return available;
 }
-function mission(value:Omit<Level,'unlocked'|'allowedBlocks'>):Level {
-  return {...value, allowedBlocks:blocks(value.number), unlocked:true};
+function mission(value:Omit<Level,'allowedBlocks'>):Level {
+  return {...value, allowedBlocks:blocks(value.number)};
 }
 function map(id:string,label:string,tiles:Tile[][],start:ReturnType<typeof robot>,
   goal:ReturnType<typeof target>,objects:MissionObject[]=[]):MapVariant {

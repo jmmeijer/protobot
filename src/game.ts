@@ -29,7 +29,6 @@ export interface Level {
   start: { x: number; y: number; direction: Direction };
   goal: { x: number; y: number };
   defaults: Command[];
-  unlocked: boolean;
   allowedBlocks?: readonly BlockType[];
   maxBlocks?: number;
   learningGoals?: string[];

@@ -49,6 +49,10 @@ let executionToken = 0;
 let resultTimer: ReturnType<typeof setTimeout> | undefined;
 const progress = new Map(levels.map(level => [level.id, loadLevel(level)]));
 
+function blockingMission(level: Level): Level | undefined {
+  return levels.find(previous => previous.number < level.number && !record(previous).completed);
+}
+
 function escapeText(s: unknown): string {
   return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch] ?? ch));
 }
@@ -85,6 +89,10 @@ function readRoute(): Route {
   if (parts[0] === 'level') {
     const level = levelById(parts[1] ?? '');
     if (!level) return {screen:'levels'};
+    if (blockingMission(level)) {
+      window.history.replaceState(null, '', '#/levels');
+      return {screen:'levels'};
+    }
     const segment = parts[2];
     if (segment === 'editor' || segment === 'play' || segment === 'workspace')
       return {screen:'workspace', level, initialMode:segment === 'play' ? 'test' : 'edit'};
@@ -265,15 +273,21 @@ function levelsScreen(): string {
   return '<main class="content screen-enter"><div class="section-heading"><div><div class="eyebrow">MISSIESELECTIE / HOOFDSTUK 01</div>' +
     '<h1>Kies je missie<span class="accent">.</span></h1><p>Elke missie leert je nieuwe manieren om ProtoBot te besturen.</p></div>' +
     '<div class="progress-badge"><strong>' + completed + ' / ' + levels.length + '</strong><span>VOLTOOID</span></div></div>' +
-    '<div class="mission-grid">' + levels.map(level =>
-      '<article class="mission-card"><div class="mission-top"><span>MISSIE ' + String(level.number).padStart(2,'0') + '</span>' +
-      (record(level).completed ? '<span class="done-tag">' + icon('check') + ' BEHAALD</span>' : '<span class="available-tag">BESCHIKBAAR</span>') +
+    '<div class="mission-grid">' + levels.map(level => {
+      const blocker = blockingMission(level);
+      const status = blocker ? '<span class="locked-tag">' + icon('lock') + ' GESLOTEN</span>'
+        : record(level).completed ? '<span class="done-tag">' + icon('check') + ' BEHAALD</span>'
+        : '<span class="available-tag">BESCHIKBAAR</span>';
+      return '<article class="mission-card"><div class="mission-top"><span>MISSIE ' + String(level.number).padStart(2,'0') + '</span>' +
+      status +
       '</div><div class="mission-visual mission-visual-' + level.number + '">' + map(level, undefined, true) + '</div>' +
       '<div class="mission-body"><div class="mission-kicker">' + escapeText(level.subtitle) + '</div>' +
       '<h2>' + escapeText(level.title) + '</h2><p>' + escapeText(level.story) + '</p>' +
-      '<button class="btn secondary" data-action="open-level" data-value="' + level.id + '">BEKIJK OPDRACHT ' + icon('next') + '</button></div></article>'
-    ).join('') + '</div><div class="future-notice">' + icon('check') +
-    '<div><strong>10 missies beschikbaar</strong><span>Nieuwe blokken en uitdagingen komen vrij naarmate de missies moeilijker worden.</span></div></div>' +
+      (blocker ? '<button class="btn secondary" disabled>Voltooi eerst missie ' + blocker.number + '</button>'
+        : '<button class="btn secondary" data-action="open-level" data-value="' + level.id + '">BEKIJK OPDRACHT ' + icon('next') + '</button>') +
+      '</div></article>';
+    }).join('') + '</div><div class="future-notice">' + icon('check') +
+    '<div><strong>10 missies in dit hoofdstuk</strong><span>Voltooi de huidige missie om de volgende te openen.</span></div></div>' +
     '<a class="btn secondary" href="#/map-prototype" style="margin-top:23px">KAARTLAB: TEST TERREINEN ' + icon('map') + '</a></main>';
 }
 function crumb(level: Level, step: string): string {
@@ -422,7 +436,7 @@ function resultScreen(level: Level): string {
     '<div><strong>' + (activeProgram?.totalBlocks ?? 0) + '</strong><span>CODEBLOKKEN</span></div></div>' +
     '<div class="result-actions"><button class="btn primary" data-action="to-editor">' +
     (won ? 'PROGRAMMA BEKIJKEN' : 'PROBEER OPNIEUW') + ' ' + icon('code') + '</button>' +
-    (won && nextMission ? '<button class="btn secondary" data-action="next-mission" data-value="'+escapeText(nextMission.id)+
+    (won && nextMission && !blockingMission(nextMission) ? '<button class="btn secondary" data-action="next-mission" data-value="'+escapeText(nextMission.id)+
       '">VOLGENDE MISSIE '+icon('next')+'</button>':'')+
     '<button class="btn secondary" data-action="to-levels">MISSIEOVERZICHT ' + icon('map') + '</button></div></section></main>';
 }
