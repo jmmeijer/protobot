@@ -18,5 +18,5 @@
 .blockly-editor-map .grid-board{gap:3px;padding:6px}
 .blockly-editor-map .side-caption {padding:0 22px 17px}
 .blockly-workspace-note {font-size:11px;color:#8ba6a8}
-@media(max-width:1050px){.blockly-editor-layout{grid-template-columns:minmax(0,1fr)}.blockly-editor-map{display:none}.blockly-workspace{height:580px}}
+@media(max-width:1050px){.blockly-editor-layout{grid-template-columns:minmax(0,1fr)}.blockly-editor-map{display:block}.blockly-editor-map .grid-board{width:min(100%,340px)}.blockly-workspace{height:580px}}
 @media(max-width:600px){.blockly-workspace{height:460px}.blockly-editor-info{font-size:11px;padding:12px}.blockly-workspace-panel .panel-top{padding:0 13px}}
