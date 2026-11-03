@@ -232,9 +232,7 @@ function header(): string {
 function footer(): string {
   return '<footer class="app-footer"><span>PROTOBOT SYSTEMS // V0.2 ALPHA</span><span>LEER • CODEER • ONTDEK</span></footer>';
 }
-function bot(heading = 'E'): string {
-  return '<span class="bot-sprite heading-' + heading + '" aria-label="ProtoBot"><span class="bot-antenna"></span><span class="bot-face"><i></i><i></i></span><span class="bot-track"></span></span>';
-}
+
 function map(level: Level, _run?: RunState, preview = false): string {
   // Terrain and robot are rendered by the shared Canvas autotiling renderer.
   // The real level grid remains the single source of truth for the interpreter.
@@ -254,10 +252,7 @@ function startScreen(): string {
     '<button class="btn primary btn-large" data-action="to-levels">START MISSIE ' + icon('next') + '</button>' +
     installButton() +
     '<div class="hero-meta"><span>◆ PROGRAMMEER MET BLOKKEN</span><span>◆ LEER DOOR TE TESTEN</span></div></div>' +
-    '<div class="hero-art" aria-label="Illustratie van ProtoBot in een verlaten communicatiecentrum">' +
-    '<div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="signal-rings"></div>' +
-    '<div class="hero-robot">' + bot('E') + '</div><span class="hero-art-label">PROTOBOT // UNIT 01</span>' +
-    '<span class="hero-coordinate">51° N / 05° E</span></div></main>';
+    '</main>';
 }
 function levelsScreen(): string {
   const completed = levels.filter(level => record(level).completed).length;
