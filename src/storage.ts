@@ -1,6 +1,13 @@
 import { type Block, type Command, type Level, commands } from './game';
+
 const prefix = 'protobot:v1:';
-interface SavedLevel { revision: number; blocks: Block[]; completed: boolean }
+/** The old flat list remains temporarily for backwards-compatible migration. */
+export interface SavedLevel {
+  revision: number;
+  blocks: Block[];
+  completed: boolean;
+  workspace?: object;
+}
 const memory = new Map<string, SavedLevel>();
 let warning = '';
 export const storageWarning = () => warning;
@@ -9,24 +16,34 @@ function isBlock(value: unknown): value is Block {
   return !!value && typeof value === 'object' && typeof (value as Block).id === 'string' &&
     typeof (value as Block).command === 'string' && (value as Block).command in commands;
 }
+function isWorkspace(value: unknown): value is object {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const data=value as {blocks?:{blocks?:unknown}};
+  return !!data.blocks && Array.isArray(data.blocks.blocks);
+}
+function initial(level: Level): SavedLevel {
+  return {revision:level.revision,blocks:level.defaults.map((command:Command,i)=>({id:'start-'+i,command})),completed:false};
+}
 export function loadLevel(level: Level): SavedLevel {
-  const fallback: SavedLevel = {revision: level.revision, blocks: level.defaults.map((command: Command, i) => ({id: 'start-' + i, command})), completed: false};
+  const fallback=initial(level);
   try {
-    const raw = localStorage.getItem(key(level));
-    if (!raw) return memory.get(key(level)) ?? fallback;
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return fallback;
-    const saved = parsed as Partial<SavedLevel>;
-    if (!Array.isArray(saved.blocks) || saved.blocks.length > 100 || !saved.blocks.every(isBlock)) return fallback;
-    // Only reuse blocks from a matching level revision; preserve the completed badge.
-    return {revision: level.revision, blocks: saved.revision === level.revision ? saved.blocks : fallback.blocks, completed: saved.completed === true};
+    const raw=localStorage.getItem(key(level));
+    if(!raw) return memory.get(key(level)) ?? fallback;
+    const parsed:unknown=JSON.parse(raw);
+    if(!parsed || typeof parsed!=='object') return fallback;
+    const saved=parsed as Partial<SavedLevel>;
+    const sameRevision=saved.revision===level.revision;
+    const blocks= sameRevision && Array.isArray(saved.blocks) && saved.blocks.length<=100 && saved.blocks.every(isBlock)
+      ? saved.blocks : fallback.blocks;
+    const workspace=sameRevision && isWorkspace(saved.workspace) ? saved.workspace : undefined;
+    return {revision:level.revision,blocks,completed:saved.completed===true,...(workspace?{workspace}:{})};
   } catch {
-    warning = 'Opslaan is niet beschikbaar in deze browser. Je kunt wel verder spelen.';
+    warning='Opslaan is niet beschikbaar in deze browser. Je kunt wel verder spelen.';
     return memory.get(key(level)) ?? fallback;
   }
 }
-export function saveLevel(level: Level, data: SavedLevel): void {
-  memory.set(key(level), data);
-  try { localStorage.setItem(key(level), JSON.stringify(data)); }
-  catch { warning = 'Opslaan is niet beschikbaar in deze browser. Je kunt wel verder spelen.'; }
+export function saveLevel(level:Level,data:SavedLevel):void {
+  memory.set(key(level),data);
+  try { localStorage.setItem(key(level),JSON.stringify(data)); }
+  catch {warning='Opslaan is niet beschikbaar in deze browser. Je kunt wel verder spelen.';}
 }

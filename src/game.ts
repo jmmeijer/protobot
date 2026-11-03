@@ -1,7 +1,7 @@
 export type Command = 'forward' | 'left' | 'right' | 'scan';
 export type Direction = 'N' | 'E' | 'S' | 'W';
 export type Phase = 'ready' | 'running' | 'paused' | 'won' | 'failed';
-export type Tile = 'grass' | 'stone' | 'sand' | 'water' | 'wall';
+export type Tile = 'grass' | 'stone' | 'dirt' | 'sand' | 'water' | 'lava' | 'wall';
 export interface Block { id: string; command: Command }
 export interface Level {
   id: string;
@@ -90,8 +90,8 @@ export function executeStep(level: Level, program: readonly Block[], previous: R
       return next;
     }
     next.x = x; next.y = y;
-    if (tile === 'water') {
-      next.phase = 'failed'; next.message = 'ProtoBot is in het water gereden.';
+    if (tile === 'water' || tile === 'lava') {
+      next.phase = 'failed'; next.message = tile === 'water' ? 'ProtoBot is in het water gereden.' : 'ProtoBot is in lava gereden.';
       return next;
     }
   }
