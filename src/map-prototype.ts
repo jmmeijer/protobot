@@ -1,11 +1,10 @@
 import './map-prototype.css';
 import {
-  atlasCoordinates, cloneMap, demos, labels, terrainNames,
+  cloneMap, demos, labels, terrainNames,
   type TerrainMap, type TerrainName
 } from './terrain-model';
-import { autotileLayers, makeAutotileMask, MASK_RESOLUTION } from './autotile';
+import { createTerrainPainter } from './terrain-canvas';
 
-const ATLAS_TILE_PX = 128;
 const MAX_CANVAS_WIDTH = 740;
 const ATLAS_URL = new URL('./assets/terrain-atlas.webp', import.meta.url).href;
 const ROBOT_URL = new URL('./assets/protobot-topdown.webp', import.meta.url).href;
@@ -61,38 +60,6 @@ export function mapPrototypeMarkup(): string {
   </main>`;
 }
 
-function texture(ctx: CanvasRenderingContext2D, atlas: HTMLImageElement, terrain: TerrainName, x: number, y: number, size: number) {
-  const [col, row] = atlasCoordinates[terrain];
-  ctx.drawImage(atlas, col * ATLAS_TILE_PX, row * ATLAS_TILE_PX, ATLAS_TILE_PX, ATLAS_TILE_PX, x, y, size, size);
-}
-
-/** The atlas is textured first, then clipped by a 32px binary mask. This avoids
- * anti-aliased Canvas clip edges and preserves crisp pixel art when scaled.
- */
-function drawAutotileOverlay(
-  ctx: CanvasRenderingContext2D, atlas: HTMLImageElement,
-  maskCtx: CanvasRenderingContext2D, maskData: ImageData,
-  maskCanvas: HTMLCanvasElement, overlayCtx: CanvasRenderingContext2D,
-  overlayCanvas: HTMLCanvasElement, terrain: TerrainName, mask: number,
-  gridX: number, gridY: number, x: number, y: number, tileSize: number
-) {
-  const pixels = makeAutotileMask(mask, gridX, gridY, terrain);
-  for (let i = 0; i < pixels.length; i++) {
-    const at = i * 4;
-    maskData.data[at] = 255;
-    maskData.data[at + 1] = 255;
-    maskData.data[at + 2] = 255;
-    maskData.data[at + 3] = pixels[i] ? 255 : 0;
-  }
-  maskCtx.putImageData(maskData, 0, 0);
-  overlayCtx.clearRect(0, 0, ATLAS_TILE_PX, ATLAS_TILE_PX);
-  texture(overlayCtx, atlas, terrain, 0, 0, ATLAS_TILE_PX);
-  overlayCtx.globalCompositeOperation = 'destination-in';
-  overlayCtx.drawImage(maskCanvas, 0, 0, ATLAS_TILE_PX, ATLAS_TILE_PX);
-  overlayCtx.globalCompositeOperation = 'source-over';
-  ctx.drawImage(overlayCanvas, x, y, tileSize, tileSize);
-}
-
 export function mountMapPrototype() {
   unmountMapPrototype();
   const root = document.querySelector<HTMLElement>('#map-prototype-screen');
@@ -104,20 +71,7 @@ export function mountMapPrototype() {
   if (!ctx) { status.textContent = 'Canvas wordt niet ondersteund in deze browser.'; return; }
   const atlas = new Image();
   const robot = new Image();
-  // Reusable offscreen buffers for stable nearest-neighbour transition masks.
-  const maskCanvas = document.createElement('canvas');
-  maskCanvas.width = maskCanvas.height = MASK_RESOLUTION;
-  const maskCtx = maskCanvas.getContext('2d');
-  const overlayCanvas = document.createElement('canvas');
-  overlayCanvas.width = overlayCanvas.height = ATLAS_TILE_PX;
-  const overlayCtx = overlayCanvas.getContext('2d');
-  if (!maskCtx || !overlayCtx) {
-    status.textContent = 'De Canvas-overgangen worden niet ondersteund in deze browser.';
-    return;
-  }
-  maskCtx.imageSmoothingEnabled = false;
-  overlayCtx.imageSmoothingEnabled = false;
-  const maskData = maskCtx.createImageData(MASK_RESOLUTION, MASK_RESOLUTION);
+  const terrainPainter = createTerrainPainter();
   let canvasWidth = 0;
   let tileSize = 0;
   let isActive = true;
@@ -141,23 +95,7 @@ export function mountMapPrototype() {
       ctx.fillStyle = '#314b49'; ctx.fillRect(0, 0, canvasWidth, rows * tileSize);
       return;
     }
-    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
-      texture(ctx, atlas, map[y][x], x * tileSize, y * tileSize, tileSize);
-    }
-    if (transitionsVisible) {
-      // 8-way blob masks: only higher-priority neighbours bleed into the base
-      // cell. Each interface is rendered from one side, never duplicated.
-      for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
-        const layers = autotileLayers(map, x, y);
-        for (const layer of layers) {
-          drawAutotileOverlay(
-            ctx, atlas, maskCtx, maskData, maskCanvas, overlayCtx,
-            overlayCanvas, layer.terrain, layer.mask,
-            x, y, x * tileSize, y * tileSize, tileSize
-          );
-        }
-      }
-    }
+    terrainPainter.draw(ctx, atlas, map, tileSize, transitionsVisible);
     if (gridVisible) {
       ctx.strokeStyle = 'rgba(7, 25, 25, .43)';
       ctx.lineWidth = Math.max(0.7, 1 / dpr);

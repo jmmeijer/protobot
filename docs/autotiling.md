@@ -20,7 +20,7 @@ Het pixelpatroon van de randen is deterministisch uit wereldcoördinaten en het 
 
 - De maskers zijn procedureel, geen handgeschilderde atlasmaskers. De huidige brontexturen zijn nog niet gegarandeerd naadloos herhaalbaar; een zichtbare herhaling in grote uniforme gebieden staat los van de autotile-overgangen.
 - Het maskerpatroon is 32 × 32 en de visual priority is globaal; bijzondere natuurkundige combinaties (zoals stromend water tegen lava) kunnen later eigen overgangstegels krijgen.
-- Dit is alleen actief in `#/map-prototype`. De missies gebruiken voorlopig hun bestaande renderer.
+- De renderer is nu gedeeld tussen Kaartlab en de speelbare levels (`src/terrain-canvas.ts`). Het levelscherm (`src/level-canvas.ts`) tekent daarboven de startpositie/robot, het doel en eventueel een muur. De 47 maskers en terreinprioriteit zijn identiek voor missieoverzicht, briefing, programmeerpreview, uitvoering en Kaartlab.
 
 ## Tests
 

@@ -1,0 +1,14 @@
+/* Canvas replaces only the old CSS tile grid on actual mission screens. */
+.level-canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  border: 1px solid #4c7474;
+  box-shadow: inset 0 0 35px #0005, 0 12px 28px #0004;
+  background: #263e40;
+}
+.field-wrap .level-canvas { flex: 0 1 auto; }
+.field-preview .level-canvas { max-width: 275px; }
+.game-panel .level-canvas { max-width: 510px; }
+.blockly-editor-map .level-canvas, .editor-map .level-canvas { max-width: 350px; }

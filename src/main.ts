@@ -1,4 +1,5 @@
 import './styles.css';
+import { mountLevelCanvases, unmountLevelCanvases } from './level-canvas';
 import './blockly-editor.css';
 import type { BlocklyEditorHandle } from './blockly-editor';
 import { compileWorkspace, defaultWorkspace, describeInstruction, executeProgramStep, initialProgramState, visibleInstruction, ProgramError, type Program, type ProgramRunState } from './program';
@@ -167,18 +168,15 @@ function footer(): string {
 function bot(heading = 'E'): string {
   return '<span class="bot-sprite heading-' + heading + '" aria-label="ProtoBot"><span class="bot-antenna"></span><span class="bot-face"><i></i><i></i></span><span class="bot-track"></span></span>';
 }
-function map(level: Level, run?: RunState, preview = false): string {
-  const pos = run ?? initialState(level);
+function map(level: Level, _run?: RunState, preview = false): string {
+  // Terrain and robot are rendered by the shared Canvas autotiling renderer.
+  // The real level grid remains the single source of truth for the interpreter.
+  const description = 'Speelveld ' + level.title +
+    ', start op ' + level.start.x + ',' + level.start.y +
+    ', doel op ' + level.goal.x + ',' + level.goal.y;
   return '<div class="field-wrap' + (preview ? ' field-preview' : '') + '">' +
-    '<div class="grid-board" style="--cols:' + level.tiles[0].length + '" role="img" aria-label="Speelveld van ' + escapeText(level.title) + '">' +
-    level.tiles.map((line, y) => line.map((tile, x) => {
-      const isGoal = x === level.goal.x && y === level.goal.y;
-      const isBot = x === pos.x && y === pos.y;
-      return '<div class="ground tile-' + tile + (isGoal ? ' is-goal' : '') + '">' +
-        (isGoal ? '<span class="goal-marker">' + icon('check') + '</span>' : '') +
-        (isBot ? bot(pos.direction) : '') +
-        '</div>';
-    }).join('')).join('') + '</div></div>';
+    '<canvas class="level-canvas" data-level-board data-level-id="' + escapeText(level.id) +
+    '" role="img" aria-label="' + escapeText(description) + '"></canvas></div>';
 }
 function startScreen(): string {
   return '<main class="hero screen-enter"><div class="hero-copy">' +
@@ -334,6 +332,7 @@ function resultScreen(level: Level): string {
     '<button class="btn secondary" data-action="to-levels">MISSIEOVERZICHT ' + icon('map') + '</button></div></section></main>';
 }
 function render() {
+  unmountLevelCanvases();
   if (booting) {
     root.innerHTML = '<div class="boot"><img class="boot-logo" src="' + logoSrc + '" alt="ProtoBot" width="1000" height="333" fetchpriority="high"><div class="boot-bar"><i></i></div><p>SYSTEMEN INITIALISEREN...</p></div>';
     return;
@@ -351,6 +350,10 @@ function render() {
   }
   root.innerHTML = header() + (storageWarning() ? '<div class="storage-warning" role="alert">' + escapeText(storageWarning()) + '</div>' : '') + body + footer();
   if (route.screen === 'map') mountMapPrototype();
+  mountLevelCanvases(root, level => (
+    route.screen === 'play' && route.level?.id === level.id
+      ? activeRun ?? initialState(level) : initialState(level)
+  ));
   if (route.screen === 'editor' && route.level) mountEditorScreen(route.level);
 }
 function tick() {
