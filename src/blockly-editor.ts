@@ -12,7 +12,7 @@ export interface BlocklyEditorHandle {
 let registered = false;
 function registerBlocks(): void {
   if (registered) return;
-  Blockly.setLocale(Nl);
+  Blockly.setLocale(Nl as unknown as Record<string,string>);
   Blockly.common.defineBlocksWithJsonArray([
     {
       type: 'pb_start', message0:'wanneer missie start', message1:'%1',
@@ -81,8 +81,8 @@ export function mountBlocklyEditor(
     grid:{spacing:24,length:2,colour:'#365054',snap:true}
   });
   const apply = (state:unknown) => {
-    try { Blockly.serialization.workspaces.load(state as Blockly.serialization.workspaces.State,workspace); }
-    catch { Blockly.serialization.workspaces.load(defaultWorkspace(level) as Blockly.serialization.workspaces.State,workspace); }
+    try { Blockly.serialization.workspaces.load(state as Parameters<typeof Blockly.serialization.workspaces.load>[0],workspace); }
+    catch { Blockly.serialization.workspaces.load(defaultWorkspace(level) as Parameters<typeof Blockly.serialization.workspaces.load>[0],workspace); }
     const start=workspace.getTopBlocks(false).find(b=>b.type==='pb_start');
     if (start) {
       start.setDeletable(false);
