@@ -14,3 +14,6 @@
 .mission-result-map.failed{color:#ffd0a6;border-color:#8c5b42}
 .mission-success-log{font-family:monospace;line-height:1.65;color:#8fe0cd;background:#0c2428;padding:14px 16px;margin:18px 22px;border-left:2px solid #4cc9b4}
 @media(max-width:640px){.mission-hint-panel{margin:9px}.mission-restriction{padding:8px 12px}.mission-learning{padding:12px}}
+
+.locked-tag { display:inline-flex; align-items:center; gap:6px; color:#bbc7ca; }
+.locked-tag .ico { width:14px; }

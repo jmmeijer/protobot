@@ -22,7 +22,7 @@ npm run dev
 - Geïntegreerde Blockly-werkruimte en testen: `#/level/radiomast/workspace`
 - Resultaat: `#/level/radiomast/result`
 
-De oude `/editor`- en `/play`-routes blijven als verwijzing werken. Alle tien missies zijn rechtstreeks toegankelijk.
+De oude `/editor`- en `/play`-routes blijven als verwijzing werken. Missie 1 is direct toegankelijk. Elke volgende missie opent zodra alle eerdere missies zijn behaald. Een directe link naar een gesloten missie leidt naar het missieoverzicht.
 
 De programmeeromgeving gebruikt nu **Blockly**: Nederlandstalige sleepbare blokken, een vast startblok, lokale Blockly-JSON-opslag en automatische migratie van oude instructielijsten. Blockly-blokken worden nu per missie ontgrendeld: rijden en draaien (1), scannen (3), getelde herhaling (4), als/anders en terrein vóór mij (6), pad vrij (7), herhaal totdat en terrein onder mij (8), en op doel? (10). De testmodus toont de huidige en volgende instructie, met afspelen, pauzeren, stap en herstart. De interpreter voert uitsluitend eigen robotinstructies uit, geen gegenereerde JavaScript.
 
