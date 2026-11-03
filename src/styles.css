@@ -273,3 +273,39 @@ h1 em {font-style:normal}
 @media(prefers-reduced-motion:reduce) {*{animation-duration:.01ms!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
 
 [data-install][hidden] { display: none; }
+
+/* One landscape image, with the focal point on the rover's screen. */
+.hero, .boot {
+  --scene: url('./assets/splash.webp');
+  background: linear-gradient(90deg, #071115ee, #071115ad 39%, transparent 67%),
+              var(--scene) 68% center / cover no-repeat;
+}
+.hero {width:100%;padding-inline:max(5vw, calc((100vw - 1190px) / 2))}
+.hero-copy > p, .hero-meta {color:#c4d4d5}
+.boot {align-items:flex-start;padding:5vw}
+.boot-logo {width:min(42vw,520px)}
+
+@media (max-width:760px) {
+  .hero, .boot {
+    --scene-height:clamp(210px, 40svh, 410px);
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    justify-content:flex-start;
+    gap:0;
+    padding:0 0 2rem;
+    background:#0a1215;
+  }
+  .hero::before, .boot::before {
+    content:'';
+    display:block;
+    height:var(--scene-height);
+    flex:none;
+    background:linear-gradient(to bottom, transparent 75%, #0a1215),
+               var(--scene) 83% 46% / cover no-repeat;
+  }
+  .hero-copy {padding:0 clamp(20px,5vw,38px)}
+  .boot {align-items:center;gap:16px}
+  .boot::before {width:100%;height:clamp(240px,55svh,560px)}
+  .boot-logo {width:min(72vw,380px)}
+}
