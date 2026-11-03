@@ -271,3 +271,5 @@ h1 em {font-style:normal}
   .app-footer {font-size:8px;gap:12px}
 }
 @media(prefers-reduced-motion:reduce) {*{animation-duration:.01ms!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
+
+[data-install][hidden] { display: none; }
