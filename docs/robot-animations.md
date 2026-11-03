@@ -22,3 +22,13 @@ De Blockly-interpreter blijft deterministisch: één instructie levert een nieuw
 ## Controleren
 
 Geautomatiseerde tests controleren interpolatie, draaibaan, easing, sensorpuls en reduced-motion. Test daarnaast handmatig: vooruitrijden, draaien, pauzeren halverwege, hervatten, één stap, herstart tijdens een beweging, schermformaat wijzigen tijdens beweging, en succes/falen.
+
+
+## Werkruimte zonder herladen
+
+De oorspronkelijke aparte programmeer- en testschermen zijn verenigd. Het
+omschakelen naar testmodus laat zowel Blockly als het speel-Canvas gemount.
+De kaart schaalt mee met het CSS Grid; het terrein wordt eenmaal op een
+statische buffer met 128 pixels per tegel getekend en bij paneelgroei geschaald.
+De dynamische robotpose blijft in logische tegelcoördinaten en wordt dus niet
+verstoord door een layoutovergang.

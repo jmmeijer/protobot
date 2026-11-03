@@ -4,6 +4,7 @@ import { createTerrainPainter, levelTerrain } from './terrain-canvas';
 import type { TerrainMap, TerrainName } from './terrain-model';
 import { poseAt, restingPose, type RobotPose } from './robot-motion';
 
+const STATIC_TILE_SIZE = 128;
 const ATLAS_URL = new URL('./assets/terrain-atlas.webp', import.meta.url).href;
 const ROBOT_URL = new URL('./assets/protobot-topdown.webp', import.meta.url).href;
 type Assets = { atlas: HTMLImageElement | null; robot: HTMLImageElement | null };
@@ -114,6 +115,7 @@ function sizeFor(canvas: HTMLCanvasElement, level: Level): number {
   const horizontalPadding = parseFloat(css.paddingLeft) + parseFloat(css.paddingRight);
   const available = Math.max(0, holder.clientWidth - horizontalPadding);
   const maximum = holder.classList.contains('field-preview') ? 275
+    : !!canvas.closest('#mission-workspace') ? 780
     : !!canvas.closest('.blockly-editor-map, .editor-map') ? 350
     : !!canvas.closest('.game-panel') ? 510 : 530;
   // A mission card has a fixed-height preview. Fit both axes without cropping.
@@ -175,13 +177,33 @@ export function mountLevelCanvases(
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.imageSmoothingEnabled = false;
       context.clearRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(background, 0, 0);
+      context.drawImage(background, 0, 0, canvas.width, canvas.height);
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
       context.imageSmoothingEnabled = false;
       drawRobot(context, pose, tileSize, loaded?.robot ?? null);
     };
 
+    // Rebuild terrain only when the image assets change; a panel transition
+    // merely rescales the cached picture instead of re-running 47 autotile masks.
     const rebuildBackground = () => {
+      if (!active) return;
+      const cols = level.tiles[0].length;
+      const rows = level.tiles.length;
+      background.width = cols * STATIC_TILE_SIZE;
+      background.height = rows * STATIC_TILE_SIZE;
+      backgroundContext.setTransform(1, 0, 0, 1, 0, 0);
+      backgroundContext.imageSmoothingEnabled = false;
+      backgroundContext.clearRect(0, 0, background.width, background.height);
+      if (loaded?.atlas) painter.draw(backgroundContext, loaded.atlas, terrainMap, STATIC_TILE_SIZE);
+      else fallbackTerrain(backgroundContext, terrainMap, STATIC_TILE_SIZE);
+      for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+        if (level.tiles[y][x] === 'wall') drawWall(backgroundContext, x, y, STATIC_TILE_SIZE);
+      }
+      drawGoal(backgroundContext, level, STATIC_TILE_SIZE);
+      paint();
+    };
+
+    const resizeCanvas = () => {
       if (!active || !canvas.isConnected) return;
       const width = sizeFor(canvas, level);
       if (width <= 0) return;
@@ -192,24 +214,10 @@ export function mountLevelCanvases(
       dpr = Math.min(window.devicePixelRatio || 1, 3);
       const pixelWidth = Math.max(1, Math.round(width * dpr));
       const pixelHeight = Math.max(1, Math.round(height * dpr));
-      if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
-        canvas.width = pixelWidth;
-        canvas.height = pixelHeight;
-      }
+      if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
+      if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
       canvas.style.width = width + 'px';
       canvas.style.height = height + 'px';
-      background.width = pixelWidth;
-      background.height = pixelHeight;
-      backgroundContext.setTransform(dpr, 0, 0, dpr, 0, 0);
-      backgroundContext.imageSmoothingEnabled = false;
-      backgroundContext.clearRect(0, 0, width, height);
-      if (loaded?.atlas) painter.draw(backgroundContext, loaded.atlas, terrainMap, tileSize);
-      else fallbackTerrain(backgroundContext, terrainMap, tileSize);
-      // These objects are static during a run. Robot movement cannot change them.
-      for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
-        if (level.tiles[y][x] === 'wall') drawWall(backgroundContext, x, y, tileSize);
-      }
-      drawGoal(backgroundContext, level, tileSize);
       paint();
     };
 
@@ -283,8 +291,9 @@ export function mountLevelCanvases(
     };
     boards.set(level.id, instance);
     instances.push(instance);
-    const observer = new ResizeObserver(rebuildBackground);
+    const observer = new ResizeObserver(resizeCanvas);
     if (canvas.parentElement) observer.observe(canvas.parentElement);
+    resizeCanvas();
     rebuildBackground();
     void loadAssets().then(assets => {
       if (!active) return;

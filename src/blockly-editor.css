@@ -1,22 +1,54 @@
-/* Blockly owns its toolbox, block canvas and insertion targets. */
-.blockly-editor-layout {display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start}
-.blockly-workspace-panel {min-width:0;overflow:hidden}
-.blockly-workspace-panel .panel-top {min-height:52px}
-.blockly-workspace {width:100%;height:610px;position:relative;background:#112629}
-.blockly-workspace .blocklySvg {background:#122125!important}
-.blockly-workspace .blocklyToolboxDiv {background:#142a2f;color:#dceae9;border-right:1px solid #365154}
-.blockly-workspace .blocklyToolboxCategoryLabel {color:#dceae9;font-weight:700}
-.blockly-workspace .blocklyTreeRow {min-height:35px}
-.blockly-workspace .blocklyFlyoutBackground {fill:#142b2e;fill-opacity:1}
-.blockly-workspace .blocklyMainBackground {stroke:transparent}
+/* ProtoBot's unified programming/test cockpit. */
+.blockly-editor-layout{display:grid;grid-template-columns:minmax(0,1.85fr) minmax(0,1fr);gap:18px;align-items:start;transition:grid-template-columns .34s ease}
+.mode-test .blockly-editor-layout{grid-template-columns:minmax(0,1fr) minmax(0,1.85fr)}
+.blockly-workspace-panel,.blockly-editor-map{min-width:0;overflow:hidden}
+.blockly-workspace-panel .panel-top{min-height:52px}
+.blockly-workspace{width:100%;height:580px;position:relative;background:#122125}
+.blockly-workspace .blocklySvg{background:#122125!important}
+/* Actual Blockly category toolbox selector (the former .blocklyToolboxDiv was obsolete). */
+.blockly-workspace .blocklyToolbox,.blockly-workspace .blocklyToolboxDiv{background:#142a2f!important;color:#e3f2f0!important;border-right:1px solid #365154}
+.blockly-workspace .blocklyToolboxCategoryLabel,.blockly-workspace .blocklyTreeLabel{color:#e3f2f0!important;font-weight:700}
+.blockly-workspace .blocklyToolboxCategory,.blockly-workspace .blocklyTreeRow{min-height:35px}
+.blockly-workspace .blocklyToolboxCategory:hover,.blockly-workspace .blocklyTreeRow:hover{background:#29454a}
+.blockly-workspace .blocklyToolboxCategoryContainer,.blockly-workspace .blocklyToolboxCategoryGroup{background:#142a2f}
+.blockly-workspace .blocklyFlyoutBackground{fill:#193238!important;fill-opacity:1}
+.blockly-workspace .blocklyMainBackground{stroke:transparent}
+.blockly-workspace .blocklyFlyoutLabelText{fill:#e3f2f0}
+.blockly-workspace.is-readonly .blocklyToolbox,.blockly-workspace.is-readonly .blocklyToolboxDiv,.blockly-workspace.is-readonly .blocklyTrash{display:none!important}
+.blockly-workspace .protobot-block-active>.blocklyPath{stroke:#7cf4d9!important;stroke-width:3.4px!important;filter:drop-shadow(0 0 5px #7cf4d988)}
+.blockly-workspace .protobot-block-next>.blocklyPath{stroke:#cae1df;stroke-width:1.8px;stroke-dasharray:5 4}
 .blockly-editor-info{padding:12px 20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:12px;color:#9dc1be;border-top:1px solid #2d4448}
 .blockly-editor-status{margin:0;padding:11px 20px;color:#9be7d6;min-height:42px;line-height:1.6;font-size:12px}
 .blockly-editor-status.is-error{color:#ffd0a6;background:#51362455}
 .blockly-editor-status.is-warning{color:#ebc17d;background:#45382144}
-.blockly-editor-map{overflow:hidden}
 .blockly-editor-map .field-wrap{padding:14px}
-.blockly-editor-map .grid-board{gap:3px;padding:6px}
-.blockly-editor-map .side-caption {padding:0 22px 17px}
-.blockly-workspace-note {font-size:11px;color:#8ba6a8}
-@media(max-width:1050px){.blockly-editor-layout{grid-template-columns:minmax(0,1fr)}.blockly-editor-map{display:block}.blockly-editor-map .grid-board{width:min(100%,340px)}.blockly-workspace{height:580px}}
-@media(max-width:600px){.blockly-workspace{height:460px}.blockly-editor-info{font-size:11px;padding:12px}.blockly-workspace-panel .panel-top{padding:0 13px}}
+.blockly-editor-map .side-caption{padding:0 22px 17px}
+.blockly-workspace-note{font-size:11px;color:#8ba6a8}
+.workspace-current-instruction{padding:12px 17px;border-top:1px solid #304246;display:grid;gap:6px;color:#a6c0c1;font-size:12px}
+.workspace-current-instruction b{color:var(--cyan)}
+.workspace-current-instruction .next-instruction{color:#8ca9aa;font-size:11px}
+.mode-edit .workspace-current-instruction,.mode-test .blockly-workspace-note,.mode-test .workspace-edit-note{display:none}
+.mode-test .blockly-workspace{height:550px}
+.mode-test .blockly-editor-info{color:#7cf4d9}
+.mode-test .workspace-lock-indicator{color:#7cf4d9}
+.blockly-editor-map .field-wrap{background:radial-gradient(circle,#213e3d,#101e21)}
+.blockly-editor-map .level-canvas{max-width:100%}
+.blockly-editor-map .game-hud{grid-template-columns:repeat(2,minmax(0,1fr))}
+.blockly-editor-map .game-hud>div{padding:12px 14px}
+.mode-edit .blockly-editor-map .game-hud,.mode-edit .blockly-editor-map .run-message{display:none}
+.mode-test .blockly-editor-map .side-caption{display:none}
+.workspace-actions[hidden]{display:none!important}
+@media(max-width:1070px){
+ .blockly-editor-layout,.mode-test .blockly-editor-layout{grid-template-columns:minmax(0,1fr)}
+ .mode-test .blockly-editor-map{order:-1}
+ .blockly-workspace{height:520px}
+ .mode-test .blockly-workspace{height:370px}
+}
+@media(max-width:600px){
+ .blockly-workspace{height:450px}
+ .mode-test .blockly-workspace{height:290px}
+ .blockly-editor-info{font-size:11px;padding:12px}
+ .blockly-workspace-panel .panel-top{padding:0 13px}
+ .blockly-editor-map .game-hud{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(prefers-reduced-motion:reduce){.blockly-editor-layout{transition:none}}
