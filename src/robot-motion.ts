@@ -40,7 +40,7 @@ export function poseAt(from: RobotPosition, to: RobotPosition, progress: number)
     x: from.x + (to.x - from.x) * eased,
     y: from.y + (to.y - from.y) * eased,
     angle: rotation[from.direction] + shortestTurn(from.direction, to.direction) * eased,
-    pulse: kind === 'sensor' ? Math.sin(Math.PI * p) : 0
+    pulse: kind === 'sensor' && p > 0 && p < 1 ? Math.sin(Math.PI * p) : 0
   };
 }
 
