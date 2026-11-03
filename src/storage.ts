@@ -1,4 +1,4 @@
-import { type Block, type Command, type Level, commands } from './game';
+import { type Block, type Command, type Level, commands } from './game.ts';
 
 const prefix = 'protobot:v1:';
 /** The old flat list remains temporarily for backwards-compatible migration. */

@@ -9,7 +9,7 @@ const B=(type,props={})=>({type,id:type+'-'+(++serial),...props});
 const chain=(...nodes)=>{for(let i=0;i<nodes.length-1;i++)nodes[i].next={block:nodes[i+1]};return nodes[0]};
 const W=(first)=>({blocks:{languageVersion:0,blocks:[B('pb_start',{inputs:{DO:{block:first}}})]}});
 const f=()=>B('pb_forward'),l=()=>B('pb_left'),r=()=>B('pb_right');
-const repeat=(n,body)=>B('pb_repeat',{fields:{COUNT:n},inputs:{DO:{block:body}}}});
+const repeat=(n,body)=>B('pb_repeat',{fields:{COUNT:n},inputs:{DO:{block:body}}});
 const terrain=(where,kind)=>B(where==='UNDER'?'pb_terrain_under':'pb_terrain_ahead',{fields:{TERRAIN:kind}});
 const choose=(cond,yes,no)=>B('pb_if_else',{inputs:{COND:{block:cond},THEN:{block:yes},ELSE:{block:no}}});
 const until=(cond,body)=>B('pb_until',{inputs:{COND:{block:cond},DO:{block:body}}});

@@ -108,7 +108,9 @@ export function compileWorkspace(state: unknown, level: Level): Program {
       const type = block.type;
       if (block.enabled === false) { block = next(block); continue; }
       if (typeof type !== 'string') throw new ProgramError('Onbekend bloktype.', blockId);
-      if (type !== 'pb_start' && !blockAllowed(level,type))
+      if (!(type in actions || ['pb_if','pb_if_else','pb_repeat','pb_until'].includes(type)))
+        throw new ProgramError('Niet ondersteund blok: ' + type,blockId);
+      if (!blockAllowed(level,type))
         throw new ProgramError('Dit codeblok komt pas in een latere missie beschikbaar.',blockId);
       if (type in actions) {
         add({op:actions[type],blockId});
