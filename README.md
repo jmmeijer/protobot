@@ -45,6 +45,12 @@ Open de app en kies op het missieoverzicht **KAARTLAB: TEST TERREINEN**, of ga r
 - Terreinen schilderen door eerst een type en daarna een vak te kiezen; de raster- en overgangslaag zijn aan/uit te zetten.
 - Twee voorbeeldkaarten en een transparante top-down robotafbeelding om schaal en rotatie te beoordelen.
 
+## Autotiling in de speelbare levels
+
+De missiekaarten (overzicht, opdracht, Blockly-editor en speelscherm) gebruiken nu dezelfde WebP-atlas en dezelfde 8-buren/47-masker Canvas-renderer als Kaartlab. Muren behouden hun spelbetekenis als obstakel en krijgen een herkenbaar pictogram boven op steenterrein. De doelmarkering en ProtoBot worden bovenop het terrein getekend; bij testen volgt de robotpositie en -richting de bestaande interpreter zonder wijzigingen aan opgeslagen programma's.
+
+De grafische laag is bewust gescheiden van de simulatie. Er is dus geen levelrevisie of migratie nodig; alleen de tekening verandert. Het speelveld is responsief en laadt het terrein en de robotsprite één keer per browserbezoek. Bij niet-beschikbare afbeeldingen blijft een gekleurde fallbackkaart zichtbaar.
+
 De atlas is geoptimaliseerde **lossless WebP** (palet beperkt voor pixelart). De originele gegenereerde illustraties blijven buiten de bundle; definitieve handgetekende maskers, extra terreindecoraties en robuuste keyboardbewerking volgen later.
 
 Meer technische details: [autotiling en overgangsmaskers](docs/autotiling.md).
