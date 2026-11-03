@@ -1,5 +1,6 @@
 import './styles.css';
-import { mountLevelCanvases, unmountLevelCanvases } from './level-canvas';
+import { animateLevelRun, mountLevelCanvases, pauseLevelAnimation, resumeLevelAnimation, snapLevelRun, unmountLevelCanvases } from './level-canvas';
+import { motionDuration } from './robot-motion';
 import './blockly-editor.css';
 import type { BlocklyEditorHandle } from './blockly-editor';
 import { compileWorkspace, defaultWorkspace, describeInstruction, executeProgramStep, initialProgramState, visibleInstruction, ProgramError, type Program, type ProgramRunState } from './program';
@@ -24,7 +25,10 @@ let activeProgram: Program | null = null;
 let editor: BlocklyEditorHandle | null = null;
 let editorLoadToken = 0;
 let activeLevelId = '';
-let timer: ReturnType<typeof setInterval> | undefined;
+let timer: ReturnType<typeof setTimeout> | undefined;
+let autoRun = false;
+let animationPending = false;
+let executionToken = 0;
 let resultTimer: ReturnType<typeof setTimeout> | undefined;
 const progress = new Map(levels.map(level => [level.id, loadLevel(level)]));
 
@@ -70,9 +74,15 @@ function readRoute(): Route {
   return {screen: 'start'};
 }
 function stopTimers() {
-  if (timer !== undefined) clearInterval(timer);
+  // Invalidate an await that may complete after a restart or navigation.
+  executionToken++;
+  autoRun = false;
+  animationPending = false;
+  if (timer !== undefined) clearTimeout(timer);
   if (resultTimer !== undefined) clearTimeout(resultTimer);
-  timer = undefined; resultTimer = undefined;
+  timer = undefined;
+  resultTimer = undefined;
+  if (currentRoute.level && activeRun) snapLevelRun(currentRoute.level.id, activeRun);
 }
 function closeEditor() {
   ++editorLoadToken;
@@ -356,26 +366,116 @@ function render() {
   ));
   if (route.screen === 'editor' && route.level) mountEditorScreen(route.level);
 }
-function tick() {
+/**
+ * Patch only the rail and HUD. Never replace #app or the play Canvas during
+ * execution: doing so would drop the current frame and recreate the map.
+ */
+function refreshPlayStatus() {
+  if (currentRoute.screen !== 'play' || !currentRoute.level || !activeRun) return;
   const level = currentRoute.level;
-  if (!level || !activeRun || !activeProgram) return;
-  activeRun = executeProgramStep(level,activeProgram,activeRun);
-  if (activeRun.phase === 'won' || activeRun.phase === 'failed') {
-    stopTimers();
-    if (activeRun.phase === 'won') setCompleted(level);
-    render();
+  const run = activeRun;
+  const rail = root.querySelector<HTMLElement>('.code-rail');
+  if (rail) {
+    const template = document.createElement('div');
+    template.innerHTML = codeRail(level, run);
+    for (const selector of ['.rail-summary', '.rail-list', '.rail-note']) {
+      const oldPart = rail.querySelector<HTMLElement>(selector);
+      const newPart = template.querySelector<HTMLElement>(selector);
+      if (oldPart && newPart && oldPart.innerHTML !== newPart.innerHTML)
+        oldPart.innerHTML = newPart.innerHTML;
+    }
+  }
+  const values = [
+    run.x + ',' + run.y,
+    ({N:'NOORD', E:'OOST', S:'ZUID', W:'WEST'} as const)[run.direction],
+    String(run.steps),
+    run.phase === 'running' ? 'ACTIEF' :
+      run.phase === 'ready' ? 'GEREED' :
+      run.phase === 'paused' ? 'PAUZE' :
+      run.phase === 'won' ? 'GESLAAGD' : 'MISLUKT'
+  ];
+  const stats = root.querySelectorAll<HTMLElement>('.game-hud strong');
+  stats.forEach((node, i) => {
+    if (node.textContent !== values[i]) node.textContent = values[i];
+  });
+  stats[3]?.classList.toggle('is-running', run.phase === 'running');
+  const message = root.querySelector<HTMLElement>('.game-panel .run-message');
+  if (message && message.textContent !== run.message) message.textContent = run.message;
+  const playButton = root.querySelector<HTMLButtonElement>('[data-action="run"]');
+  playButton?.classList.toggle('is-active', autoRun);
+  playButton?.setAttribute('aria-pressed', String(autoRun));
+  const stepButton = root.querySelector<HTMLButtonElement>('[data-action="step"]');
+  if (stepButton) stepButton.disabled = animationPending && autoRun;
+}
+
+function scheduleNextStep(delay = 90) {
+  if (!autoRun || animationPending) return;
+  if (timer !== undefined) clearTimeout(timer);
+  timer = setTimeout(() => { timer = undefined; void runOneStep(); }, delay);
+}
+
+async function runOneStep() {
+  const level = currentRoute.level;
+  if (currentRoute.screen !== 'play' || !level || !activeRun || !activeProgram ||
+      animationPending || activeRun.phase === 'won' || activeRun.phase === 'failed') return;
+  if (resultTimer !== undefined) { clearTimeout(resultTimer); resultTimer = undefined; }
+  const token = executionToken;
+  const before = activeRun;
+  const next = executeProgramStep(level, activeProgram, before);
+  animationPending = true;
+  activeRun.phase = autoRun ? 'running' : 'paused';
+  refreshPlayStatus();
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+  await animateLevelRun(level.id, before, next, motionDuration(before, next, reduce));
+  if (token !== executionToken || currentRoute.screen !== 'play' || currentRoute.level?.id !== level.id) return;
+  animationPending = false;
+  activeRun = next;
+  if (next.phase === 'won' || next.phase === 'failed') {
+    autoRun = false;
+    if (timer !== undefined) { clearTimeout(timer); timer = undefined; }
+    if (next.phase === 'won') setCompleted(level);
+    refreshPlayStatus();
     resultTimer = setTimeout(() => navigate(routeFor(level, 'result')), 850);
     return;
   }
-  if (timer !== undefined) activeRun.phase = 'running';
-  render();
+  activeRun.phase = autoRun ? 'running' : 'paused';
+  refreshPlayStatus();
+  if (autoRun) scheduleNextStep();
 }
+
 function play() {
-  if (!currentRoute.level || !activeRun || !activeProgram || timer !== undefined || ['won','failed'].includes(activeRun.phase)) return;
+  if (currentRoute.screen !== 'play' || !currentRoute.level || !activeRun || !activeProgram ||
+      autoRun || activeRun.phase === 'won' || activeRun.phase === 'failed') return;
+  autoRun = true;
   activeRun.phase = 'running';
-  render();
-  timer = setInterval(tick, 680);
-  tick();
+  if (animationPending) resumeLevelAnimation(currentRoute.level.id);
+  else scheduleNextStep(0);
+  refreshPlayStatus();
+}
+
+function pause() {
+  if (currentRoute.screen !== 'play' || !currentRoute.level || !activeRun) return;
+  if (!autoRun && !animationPending) return;
+  autoRun = false;
+  if (timer !== undefined) { clearTimeout(timer); timer = undefined; }
+  if (animationPending) pauseLevelAnimation(currentRoute.level.id);
+  activeRun.phase = 'paused';
+  activeRun.message = 'Uitvoering gepauzeerd.';
+  refreshPlayStatus();
+}
+
+function singleStep() {
+  if (currentRoute.screen !== 'play' || !currentRoute.level || !activeRun) return;
+  autoRun = false;
+  if (timer !== undefined) { clearTimeout(timer); timer = undefined; }
+  if (animationPending) {
+    // Finish the already-started movement and stop exactly after that block.
+    resumeLevelAnimation(currentRoute.level.id);
+    activeRun.phase = 'paused';
+    refreshPlayStatus();
+    return;
+  }
+  void runOneStep();
 }
 root.addEventListener('click', event => {
   const target = event.target as Element;
@@ -394,15 +494,13 @@ root.addEventListener('click', event => {
     reportEditor('Voorbeeldprogramma hersteld.');
   }
   if (action === 'run') play();
-  if (action === 'pause' && activeRun && timer !== undefined) {
-    stopTimers(); activeRun.phase = 'paused'; activeRun.message = 'Uitvoering gepauzeerd.'; render();
-  }
-  if (action === 'step' && activeRun) {
-    if (timer !== undefined) { stopTimers(); activeRun.phase = 'paused'; }
-    tick();
-  }
-  if (action === 'restart' && level) {
-    stopTimers(); activeRun = initialProgramState(level); render();
+  if (action === 'pause') pause();
+  if (action === 'step') singleStep();
+  if (action === 'restart' && level && currentRoute.screen === 'play') {
+    stopTimers();
+    activeRun = initialProgramState(level);
+    snapLevelRun(level.id, activeRun);
+    refreshPlayStatus();
   }
 });
 window.addEventListener('hashchange', onRouteChange);

@@ -35,6 +35,12 @@ Lees [het technisch ontwerp](docs/technisch-ontwerp.md) en [het schermentraject]
 
 De workflow bouwt en test iedere pull request gericht op `main`. **Elke push naar `main` (waaronder een merge) publiceert na geslaagde build en tests automatisch de inhoud van `dist/` naar GitHub Pages.** Handmatig starten via `workflow_dispatch` op `main` blijft ook mogelijk. Stel onder Settings → Pages de bron in op **GitHub Actions**; er hoeft geen map te worden geselecteerd.
 
+## Vloeiende beweging bij het testen
+
+De Blockly-uitvoering houdt het speelveld nu permanent gemount: de robot rijdt in 540 ms van tegel naar tegel, draait in 380 ms over de kortste kwartslag en toont bij sensorinstructies een kleine scanpuls. Pauzeren bevriest de beweging halverwege; afspelen hervat vanaf dezelfde positie. De huidige en volgende instructie en HUD worden afzonderlijk bijgewerkt, zonder het hele scherm opnieuw te renderen. De instelling voor verminderde beweging wordt gerespecteerd.
+
+Meer informatie: [robotanimaties](docs/robot-animations.md).
+
 ## Kaartlab (grafisch prototype)
 
 Open de app en kies op het missieoverzicht **KAARTLAB: TEST TERREINEN**, of ga rechtstreeks naar `#/map-prototype`. Het Kaartlab is een afzonderlijke testomgeving en verandert bestaande missies of programma's niet.
