@@ -36,3 +36,8 @@ bewerkmodus; de editor wordt in dat geval niet vergrendeld.
 De oorspronkelijke routes `/editor` en `/play` worden geaccepteerd als links
 naar dezelfde werkruimte, met een opgeslagen programma als basis.
 De normale route is nu `#/level/<id>/workspace`.
+
+
+### Vrijgave van blokken per missie
+
+Het toolboxpalet leest de `allowedBlocks`-lijst per missie. De compiler valideert dezelfde lijst, zodat een aangepast Blockly-JSON-bestand geen vergrendelde blokken kan activeren. Er zijn twee aparte terreinconditieblokken: `pb_terrain_ahead` (vanaf missie 6) en `pb_terrain_under` (vanaf missie 8). Het oude `pb_terrain`-formaat blijft leesbaar voor eerder opgeslagen programma's. De maxBlocks-limiet telt gekoppelde blokken en niet het vaste startblok. Maximaal 500 uitgevoerde stappen blijft de veiligheidsgrens.

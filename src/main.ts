@@ -405,6 +405,7 @@ function mountEditorScreen(level:Level) {
 function resultScreen(level: Level): string {
   const run = activeRun;
   const won = run?.phase === 'won';
+  const nextMission=levels.find(candidate=>candidate.number===level.number+1);
   return '<main class="result-screen screen-enter"><section class="panel result-panel">' +
     '<div class="result-symbol ' + (won ? 'win' : 'retry') + '">' + icon(won ? 'check' : 'alert') + '</div>' +
     '<div class="eyebrow">MISSIE ' + String(level.number).padStart(2,'0') + ' / RESULTAAT</div>' +
@@ -418,6 +419,8 @@ function resultScreen(level: Level): string {
     '<div><strong>' + (activeProgram?.totalBlocks ?? 0) + '</strong><span>CODEBLOKKEN</span></div></div>' +
     '<div class="result-actions"><button class="btn primary" data-action="to-editor">' +
     (won ? 'PROGRAMMA BEKIJKEN' : 'PROBEER OPNIEUW') + ' ' + icon('code') + '</button>' +
+    (won && nextMission ? '<button class="btn secondary" data-action="next-mission" data-value="'+escapeText(nextMission.id)+
+      '">VOLGENDE MISSIE '+icon('next')+'</button>':'')+
     '<button class="btn secondary" data-action="to-levels">MISSIEOVERZICHT ' + icon('map') + '</button></div></section></main>';
 }
 function render() {
@@ -582,7 +585,7 @@ function singleStep() {
   if (currentRoute.screen !== 'workspace' || workspaceMode !== 'test' || !currentRoute.level || !activeRun) return;
   autoRun = false;
   if (timer !== undefined) { clearTimeout(timer); timer = undefined; }
-  if (pendingVariantIndex !== null) { advanceVariant(); return; }
+  if (pendingVariantIndex !== null) { advanceVariant(); void runOneStep(); return; }
   if (animationPending) {
     // Finish the already-started movement and stop exactly after that block.
     resumeLevelAnimation(currentRoute.level.id);
@@ -601,6 +604,7 @@ root.addEventListener('click', event => {
   const level = currentRoute.level;
   if (action === 'to-levels') navigate('#/levels');
   if (action === 'open-level' && levelById(value)) navigate(routeFor(levelById(value)!, 'briefing'));
+  if (action === 'next-mission' && levelById(value)) navigate(routeFor(levelById(value)!, 'briefing'));
   if (action === 'to-editor' && level) navigate(routeFor(level,'workspace'));
   if (action === 'to-play' && level) prepareRun(level);
   if (action === 'back-to-editor') returnToEditor();
