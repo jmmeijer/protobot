@@ -106,6 +106,7 @@ export function mountBlocklyEditor(
 ):BlocklyEditorHandle {
   registerBlocks();
   const workspace = Blockly.inject(element, {
+    media: import.meta.env.BASE_URL + (import.meta.env.DEV ? "node_modules/blockly/media/" : "blockly-media/"),
     toolbox:toolbox(level),renderer:'zelos',theme:protobotTheme,
     trashcan:true,scrollbars:true,
     zoom:{controls:true,wheel:true,startScale:0.9,minScale:0.55,maxScale:1.5,scaleSpeed:1.12},

@@ -1,3 +1,4 @@
+import { installButton } from './install';
 import './styles.css';
 import './campaign.css';
 import { animateLevelRun, mountLevelCanvases, pauseLevelAnimation, resumeLevelAnimation, snapLevelRun, setLevelCanvasVariant, unmountLevelCanvases } from './level-canvas';
@@ -251,6 +252,7 @@ function startScreen(): string {
     '<h1>De wereld heeft<br><em>jouw code</em> nodig.</h1>' +
     '<p>Bestuur ProtoBot, ontdek verlaten locaties en los puzzels op met programmeerblokken. Elke opdracht brengt je een stap verder.</p>' +
     '<button class="btn primary btn-large" data-action="to-levels">START MISSIE ' + icon('next') + '</button>' +
+    installButton() +
     '<div class="hero-meta"><span>◆ PROGRAMMEER MET BLOKKEN</span><span>◆ LEER DOOR TE TESTEN</span></div></div>' +
     '<div class="hero-art" aria-label="Illustratie van ProtoBot in een verlaten communicatiecentrum">' +
     '<div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="signal-rings"></div>' +
