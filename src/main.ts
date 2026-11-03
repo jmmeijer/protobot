@@ -3,7 +3,8 @@ import { animateLevelRun, mountLevelCanvases, pauseLevelAnimation, resumeLevelAn
 import { motionDuration } from './robot-motion';
 import './blockly-editor.css';
 import type { BlocklyEditorHandle } from './blockly-editor';
-import { compileWorkspace, defaultWorkspace, describeInstruction, executeProgramStep, initialProgramState, visibleInstruction, ProgramError, type Program, type ProgramRunState } from './program';
+import { compileWorkspace, defaultWorkspace, executeProgramStep, initialProgramState, visibleInstruction, ProgramError, type Program, type ProgramRunState } from './program';
+import { executionFocus } from './execution-focus';
 import { mapPrototypeMarkup, mountMapPrototype, unmountMapPrototype } from './map-prototype';
 import {
   initialState, levelById, levels,
@@ -11,8 +12,9 @@ import {
 } from './game';
 import { loadLevel, saveLevel, storageWarning } from './storage';
 
-type Screen = 'start' | 'levels' | 'briefing' | 'editor' | 'play' | 'result' | 'map';
-interface Route { screen: Screen; level?: Level }
+type Screen = 'start' | 'levels' | 'briefing' | 'workspace' | 'result' | 'map';
+type WorkspaceMode = 'edit' | 'test';
+interface Route { screen: Screen; level?: Level; initialMode?: WorkspaceMode }
 const app = document.querySelector<HTMLElement>('#app');
 if (!app) throw new Error('ProtoBot root #app ontbreekt');
 const root: HTMLElement = app;
@@ -24,6 +26,9 @@ let activeRun: ProgramRunState | null = null;
 let activeProgram: Program | null = null;
 let editor: BlocklyEditorHandle | null = null;
 let editorLoadToken = 0;
+let workspaceMode: WorkspaceMode = 'edit';
+let animatingBlockId: string | undefined;
+let animatingNextState: ProgramRunState | undefined;
 let activeLevelId = '';
 let timer: ReturnType<typeof setTimeout> | undefined;
 let autoRun = false;
@@ -67,9 +72,11 @@ function readRoute(): Route {
   if (parts[0] === 'level') {
     const level = levelById(parts[1] ?? '');
     if (!level) return {screen:'levels'};
-    const screen = parts[2] as Screen | undefined;
-    if (screen === 'editor' || screen === 'play' || screen === 'result') return {screen, level};
-    return {screen: 'briefing', level};
+    const segment = parts[2];
+    if (segment === 'editor' || segment === 'play' || segment === 'workspace')
+      return {screen:'workspace', level, initialMode:segment === 'play' ? 'test' : 'edit'};
+    if (segment === 'result') return {screen:'result', level};
+    return {screen:'briefing', level};
   }
   return {screen: 'start'};
 }
@@ -78,6 +85,8 @@ function stopTimers() {
   executionToken++;
   autoRun = false;
   animationPending = false;
+  animatingBlockId = undefined;
+  animatingNextState = undefined;
   if (timer !== undefined) clearTimeout(timer);
   if (resultTimer !== undefined) clearTimeout(resultTimer);
   timer = undefined;
@@ -88,7 +97,7 @@ function closeEditor() {
   ++editorLoadToken;
   if (!editor) return;
   const level = currentRoute.level;
-  if (level && currentRoute.screen === 'editor') {
+  if (level && currentRoute.screen === 'workspace') {
     const saved = {...record(level),workspace:editor.save()};
     progress.set(level.id,saved);
     saveLevel(level,saved);
@@ -101,18 +110,26 @@ function onRouteChange() {
   unmountMapPrototype();
   stopTimers();
   currentRoute = readRoute();
-  if (currentRoute.level && (currentRoute.level.id !== activeLevelId || currentRoute.screen === 'play')) {
+  if (currentRoute.level && (currentRoute.level.id !== activeLevelId || currentRoute.screen === 'workspace')) {
     activeRun = initialProgramState(currentRoute.level);
     activeLevelId = currentRoute.level.id;
   }
-  if (currentRoute.screen === 'play' && currentRoute.level) {
-    const level=currentRoute.level;
-    try {
-      activeProgram = compileWorkspace(record(level).workspace ?? defaultWorkspace(level,record(level).blocks),level);
-    } catch(error) {
-      activeProgram = null;
-      activeRun = {...initialProgramState(level),phase:'failed',message:error instanceof Error ? error.message : 'Ongeldig programma.'};
-    }
+  workspaceMode = currentRoute.initialMode ?? 'edit';
+  if (currentRoute.screen === 'workspace' && currentRoute.level) {
+    const level = currentRoute.level;
+    // Existing /editor and /play deep links keep working, but both lead
+    // to the same persistent workspace route.
+    if (window.location.hash !== routeFor(level,'workspace'))
+      window.history.replaceState(null,'',routeFor(level,'workspace'));
+    if (workspaceMode === 'test') {
+      try {
+        activeProgram = compileWorkspace(record(level).workspace ?? defaultWorkspace(level,record(level).blocks),level);
+      } catch(error) {
+        activeProgram = null;
+        activeRun = {...initialProgramState(level),phase:'failed',
+          message:error instanceof Error ? error.message : 'Ongeldig programma.'};
+      }
+    } else activeProgram = null;
   }
   render();
 }
@@ -133,28 +150,49 @@ function reportEditor(message:string,isError=false) {
   status.classList.toggle('is-warning',!isError && message.startsWith('Let op'));
 }
 function prepareRun(level:Level): boolean {
-  if (!editor && currentRoute.screen === 'editor') {
-    reportEditor('Blockly wordt nog geladen. Probeer het opnieuw zodra het palet zichtbaar is.',true);
+  if (currentRoute.screen !== 'workspace' || workspaceMode !== 'edit') return false;
+  if (!editor) {
+    reportEditor('Blockly wordt nog geladen. Probeer opnieuw zodra het palet zichtbaar is.',true);
     return false;
   }
   try {
-    const workspace=editor?.save() ?? record(level).workspace ?? defaultWorkspace(level,record(level).blocks);
-    const program=compileWorkspace(workspace,level);
-    const saved={...record(level),workspace};
+    const workspace = editor.save();
+    const program = compileWorkspace(workspace,level);
+    const saved = {...record(level),workspace};
     progress.set(level.id,saved);
     saveLevel(level,saved);
-    activeProgram=program;
-    if (program.ignoredBlocks) {
-      reportEditor('Let op: '+program.ignoredBlocks+' losse blok(ken) worden niet uitgevoerd. Alleen de keten onder het startblok telt.');
-    }
-    navigate(routeFor(level,'play'));
+    stopTimers();
+    activeProgram = program;
+    activeRun = initialProgramState(level);
+    snapLevelRun(level.id, activeRun);
+    workspaceMode = 'test';
+    editor.setReadOnly(true);
+    updateWorkspaceLayout();
+    if (program.ignoredBlocks)
+      reportEditor('Let op: '+program.ignoredBlocks+' losse blok(ken) worden niet uitgevoerd.',false);
+    else reportEditor('Testmodus: het programma is vergrendeld. Volg de gemarkeerde blokken.');
+    refreshPlayStatus();
+    play();
     return true;
   } catch (error) {
-    const message=error instanceof Error ? error.message : 'De blokken kunnen niet worden uitgevoerd.';
+    const message = error instanceof Error ? error.message : 'De blokken kunnen niet worden uitgevoerd.';
     reportEditor(message,true);
-    if (error instanceof ProgramError) editor?.highlight(error.blockId);
+    if (error instanceof ProgramError) editor.highlight(error.blockId);
     return false;
   }
+}
+
+function returnToEditor() {
+  if (currentRoute.screen !== 'workspace' || !currentRoute.level) return;
+  const level = currentRoute.level;
+  stopTimers();
+  activeRun = initialProgramState(level);
+  snapLevelRun(level.id, activeRun);
+  workspaceMode = 'edit';
+  editor?.setReadOnly(false);
+  editor?.highlight();
+  updateWorkspaceLayout();
+  reportEditor('Programma ontgrendeld. Je kunt de blokken weer bewerken.');
 }
 function setCompleted(level: Level) {
   const saved = {...record(level), completed: true};
@@ -233,31 +271,81 @@ function briefingScreen(level: Level): string {
     '<div class="map-legend"><span><i class="dot bot-dot"></i> START</span><span><i class="dot goal-dot"></i> DOEL</span>' +
     '<span><i class="dot hazard-dot"></i> GEVAAR</span></div></aside></div></main>';
 }
-function editorScreen(level: Level): string {
-  return '<main class="workbench screen-enter">' + crumb(level,'PROGRAMMEREN') +
-    '<div class="workspace-heading"><div><div class="eyebrow">PROGRAMMEERTERMINAL / MISSIE ' + String(level.number).padStart(2,'0') +
-    '</div><h1>Bouw je route<span class="accent">.</span></h1></div>' +
-    '<div class="workspace-controls">' + button('reset-program','Herstel het voorbeeldprogramma','reset') +
-    '<button class="btn primary" data-action="to-play">TEST PROGRAMMA ' + icon('play') + '</button></div></div>' +
-    '<div class="blockly-editor-layout"><section class="panel blockly-workspace-panel"><div class="panel-top"><span>' +
-    icon('code') + ' BLOCKLY / MIJN PROGRAMMA</span><span>DRAG & DROP</span></div>' +
-    '<div id="blockly-workspace" class="blockly-workspace" aria-label="Blockly-programmeerwerkruimte"></div>' +
-    '<div class="blockly-editor-info"><span id="blockly-block-count">Blokken laden…</span>' +
-    '<span class="blockly-workspace-note">Sleep blokken uit het palet naar het startblok. Gebruik de prullenbak om ze te verwijderen.</span></div>' +
-    '<p id="blockly-editor-status" class="blockly-editor-status" role="status" aria-live="polite">Blokken laden…</p></section>' +
-    '<aside class="panel blockly-editor-map"><div class="panel-top"><span>SPEELVELD / PREVIEW</span><span>LIVE</span></div>' +
-    map(level) + '<p class="side-caption">Tijdens het testen klapt de editor in. De actieve en volgende instructie blijven zichtbaar.</p>' +
-    '</aside></div></main>';
+function workspaceScreen(level: Level): string {
+  if (!activeRun) activeRun = initialProgramState(level);
+  const run = activeRun;
+  const isTesting = workspaceMode === 'test';
+  return '<main id="mission-workspace" class="workbench mission-workspace screen-enter '+(isTesting?'mode-test':'mode-edit')+'">' +
+    crumb(level, 'WERKPLAATS') +
+    '<div class="workspace-heading"><div><div class="eyebrow">PROTOBOT TERMINAL / MISSIE '+String(level.number).padStart(2,'0')+
+    '</div><h1 id="workspace-heading-text">'+(isTesting?'Test je programma':'Bouw je route')+
+    '<span class="accent">.</span></h1></div>'+
+    '<div class="workspace-actions workspace-controls" id="workspace-edit-actions"'+(isTesting?' hidden':'')+'>'+
+      button('reset-program','Herstel voorbeeldprogramma','reset')+
+      button('to-play','Programma testen','play','tool-primary')+
+    '</div>'+
+    '<div class="workspace-actions play-toolbar" id="workspace-test-actions"'+(!isTesting?' hidden':'')+
+      ' role="toolbar" aria-label="Uitvoering bedienen">'+
+      button('back-to-editor','Terug naar programmeren','code')+
+      '<span class="toolbar-divider"></span>'+
+      button('run','Uitvoeren of hervatten','play','tool-primary')+
+      button('pause','Pauzeren','pause')+
+      button('step','Eén instructie uitvoeren','step')+
+      button('restart','Opnieuw beginnen','reset')+
+    '</div></div>'+
+    '<div class="blockly-editor-layout"><section class="panel blockly-workspace-panel">'+
+      '<div class="panel-top"><span>'+icon('code')+' BLOCKLY / MIJN PROGRAMMA</span>'+
+      '<span class="workspace-lock-indicator" id="workspace-mode-label">'+(isTesting?'VERGRENDELD':'BEWERKEN')+'</span></div>'+
+      '<div id="blockly-workspace" class="blockly-workspace" aria-label="Blockly-programmeerwerkruimte"></div>'+
+      '<div class="blockly-editor-info"><span id="blockly-block-count">Blokken laden…</span>'+
+        '<span class="blockly-workspace-note">Sleep blokken uit het palet en sluit ze aan op het startblok.</span></div>'+
+      '<div class="workspace-current-instruction" aria-live="polite">'+
+        '<div><b>ACTIEF</b> <span id="workspace-current-action">Klaar om te testen</span></div>'+
+        '<div class="next-instruction">VOLGENDE: <span id="workspace-next-action">—</span></div>'+
+      '</div>'+
+      '<p id="blockly-editor-status" class="blockly-editor-status" role="status" aria-live="polite">Blokken laden…</p>'+
+    '</section>'+
+    '<section class="panel blockly-editor-map workspace-game-panel game-panel">'+
+      '<div class="panel-top"><span>VELDCAMERA / SECTOR 07</span><span>CAM 01 <i class="rec-dot"></i> LIVE</span></div>'+
+      map(level,run)+
+      '<div class="game-hud">'+
+        '<div><span>POSITIE</span><strong>'+run.x+','+run.y+'</strong></div>'+
+        '<div><span>RICHTING</span><strong>'+({N:'NOORD',E:'OOST',S:'ZUID',W:'WEST'}[run.direction])+'</strong></div>'+
+        '<div><span>STAPPEN</span><strong>'+run.steps+'</strong></div>'+
+        '<div><span>STATUS</span><strong>'+(isTesting?'GEREED':'VOORBEELD')+'</strong></div>'+
+      '</div>'+
+      '<p class="run-message" role="status">'+escapeText(run.message)+'</p>'+
+      '<p class="side-caption workspace-edit-note">Druk op Play om het programmeerveld te vergrendelen en het speelveld te vergroten.</p>'+
+    '</section></div></main>';
+}
+
+/** Switch the two panels without recreating either Blockly or the Canvas. */
+function updateWorkspaceLayout() {
+  const main = root.querySelector<HTMLElement>('#mission-workspace');
+  if (!main) return;
+  const test = workspaceMode === 'test';
+  main.classList.toggle('mode-test',test);
+  main.classList.toggle('mode-edit',!test);
+  const heading = root.querySelector<HTMLElement>('#workspace-heading-text');
+  if (heading) heading.innerHTML = (test?'Test je programma':'Bouw je route')+'<span class="accent">.</span>';
+  const modeLabel = root.querySelector<HTMLElement>('#workspace-mode-label');
+  if (modeLabel) modeLabel.textContent = test?'VERGRENDELD':'BEWERKEN';
+  const editActions = root.querySelector<HTMLElement>('#workspace-edit-actions');
+  const testActions = root.querySelector<HTMLElement>('#workspace-test-actions');
+  if (editActions) editActions.hidden = test;
+  if (testActions) testActions.hidden = !test;
+  editor?.resize();
 }
 function mountEditorScreen(level:Level) {
   const element=root.querySelector<HTMLElement>('#blockly-workspace');
   if (!element) return;
   const token=++editorLoadToken;
   void import('./blockly-editor').then(({mountBlocklyEditor}) => {
-    if (token!==editorLoadToken || currentRoute.screen!=='editor' || currentRoute.level?.id!==level.id) return;
+    if (token!==editorLoadToken || currentRoute.screen!=='workspace' || currentRoute.level?.id!==level.id) return;
     editor=mountBlocklyEditor(
       element,level,record(level).workspace ?? defaultWorkspace(level,record(level).blocks),
       (workspace,count) => {
+        if (workspaceMode!=='edit') return;
         const saved={...record(level),workspace};
         progress.set(level.id,saved);
         saveLevel(level,saved);
@@ -270,62 +358,15 @@ function mountEditorScreen(level:Level) {
       try { count.textContent=compileWorkspace(editor.save(),level).totalBlocks+' BLOKKEN IN WERKRUIMTE'; }
       catch { count.textContent='Blockly-editor gereed'; }
     }
-    reportEditor('Je wijzigingen worden automatisch opgeslagen op dit apparaat.');
-    if (activeRun?.lastBlockId) editor.highlight(activeRun.lastBlockId);
+    editor.setReadOnly(workspaceMode==='test');
+    if (workspaceMode==='test') {
+      reportEditor('Testmodus: het programma is vergrendeld. Volg de gemarkeerde blokken.');
+      refreshPlayStatus();
+    } else reportEditor('Je wijzigingen worden automatisch opgeslagen op dit apparaat.');
+    requestAnimationFrame(()=>editor?.resize());
   }).catch(() => {
     if (token===editorLoadToken) reportEditor('Blockly kon niet worden geladen. Vernieuw de pagina.',true);
   });
-}
-function codeRail(_level: Level, run: ProgramRunState): string {
-  const program=activeProgram;
-  const last=program?.instructions.find(inst=>inst.blockId===run.lastBlockId && inst.op!=='jump');
-  const current=program ? visibleInstruction(program,run.pc) : null;
-  let next=null;
-  if (program && current && run.phase!=='won' && run.phase!=='failed') {
-    const projected=executeProgramStep(currentRoute.level!,program,run);
-    if (projected.phase!=='won' && projected.phase!=='failed') next=visibleInstruction(program,projected.pc);
-  }
-  const preview=[current?.instruction,next?.instruction].map((instruction,offset)=>{
-    const label=offset===0?'NU':'VOLGENDE';
-    const text=describeInstruction(instruction);
-    return '<div class="rail-step '+(offset===0?'current':'upcoming')+'"><span class="rail-tag">'+label+'</span>'+
-      (instruction ? '<span class="rail-block kind-'+instruction.op+'"><span>'+escapeText(text)+'</span></span>' :
-      '<span class="rail-empty">Einde programma</span>')+'</div>';
-  }).join('');
-  return '<aside class="panel code-rail"><div class="panel-top"><span>'+icon('code')+
-    ' UITVOERING</span><span>INGEKLAPT</span></div>'+
-    '<div class="rail-summary"><span class="mini-light"></span>UITGEVOERD <b>'+run.steps+' STAPPEN</b></div>'+
-    '<div class="rail-list">'+preview+'</div>'+
-    (run.lastBlockId?'<div class="rail-note">Laatst uitgevoerd: '+escapeText(describeInstruction(last))+
-      (run.lastSensor?' · Sensor: '+escapeText(run.lastSensor):'')+'</div>':
-      '<div class="rail-note">De huidige en volgende instructie blijven zichtbaar terwijl ProtoBot beweegt.</div>')+
-    '</aside>';
-}
-function playScreen(level: Level): string {
-  if (!activeRun) activeRun = initialProgramState(level);
-  const run = activeRun;
-  const isRunning = run.phase === 'running';
-  return '<main class="workbench play-workbench screen-enter">' + crumb(level,'TESTEN') +
-    '<div class="workspace-heading"><div><div class="eyebrow">UITVOERMODUS / MISSIE ' + String(level.number).padStart(2,'0') +
-    '</div><h1>Test je programma<span class="accent">.</span></h1></div>' +
-    '<div class="play-toolbar" role="toolbar" aria-label="Uitvoering bedienen">' +
-    button('back-to-editor','Terug naar programmeren','code') +
-    '<span class="toolbar-divider"></span>' +
-    button('run','Uitvoeren','play','tool-primary' + (isRunning ? ' is-active' : '')) +
-    button('pause','Pauzeren','pause','', '') +
-    button('step','Eén instructie uitvoeren','step') +
-    button('restart','Opnieuw beginnen','reset') + '</div></div>' +
-    '<div class="play-layout">' + codeRail(level, run) +
-    '<section class="panel game-panel"><div class="panel-top"><span>VELDCAMERA / SECTOR 07</span><span>CAM 01 <i class="rec-dot"></i> LIVE</span></div>' +
-    map(level,run) +
-    '<div class="game-hud"><div><span>POSITIE</span><strong>' + run.x + ',' + run.y + '</strong></div>' +
-    '<div><span>RICHTING</span><strong>' + ({N:'NOORD',E:'OOST',S:'ZUID',W:'WEST'}[run.direction]) + '</strong></div>' +
-    '<div><span>STAPPEN</span><strong>' + run.steps + '</strong></div>' +
-    '<div><span>STATUS</span><strong class="' + (isRunning ? 'is-running' : '') + '">' +
-    (isRunning ? 'ACTIEF' : run.phase === 'ready' ? 'GEREED' : run.phase === 'paused' ? 'PAUZE' : 'VOLTOOID') +
-    '</strong></div></div><p class="run-message" role="status">' + escapeText(run.message) + '</p>' +
-    (activeProgram?.ignoredBlocks ? '<p class="run-message">Let op: '+activeProgram.ignoredBlocks+' losse blokken zijn niet met het startblok verbonden en worden niet uitgevoerd.</p>' : '')+
-    '</section></div></main>';
 }
 function resultScreen(level: Level): string {
   const run = activeRun;
@@ -354,37 +395,39 @@ function render() {
   else if (route.screen === 'map') body = mapPrototypeMarkup();
   else if (route.level) {
     if (route.screen === 'briefing') body = briefingScreen(route.level);
-    if (route.screen === 'editor') body = editorScreen(route.level);
-    if (route.screen === 'play') body = playScreen(route.level);
+    if (route.screen === 'workspace') body = workspaceScreen(route.level);
     if (route.screen === 'result') body = resultScreen(route.level);
   }
   root.innerHTML = header() + (storageWarning() ? '<div class="storage-warning" role="alert">' + escapeText(storageWarning()) + '</div>' : '') + body + footer();
   if (route.screen === 'map') mountMapPrototype();
   mountLevelCanvases(root, level => (
-    route.screen === 'play' && route.level?.id === level.id
+    route.screen === 'workspace' && route.level?.id === level.id
       ? activeRun ?? initialState(level) : initialState(level)
   ));
-  if (route.screen === 'editor' && route.level) mountEditorScreen(route.level);
+  if (route.screen === 'workspace' && route.level) mountEditorScreen(route.level);
 }
 /**
  * Patch only the rail and HUD. Never replace #app or the play Canvas during
  * execution: doing so would drop the current frame and recreate the map.
  */
 function refreshPlayStatus() {
-  if (currentRoute.screen !== 'play' || !currentRoute.level || !activeRun) return;
+  if (currentRoute.screen !== 'workspace' || workspaceMode !== 'test' ||
+      !currentRoute.level || !activeRun) return;
   const level = currentRoute.level;
   const run = activeRun;
-  const rail = root.querySelector<HTMLElement>('.code-rail');
-  if (rail) {
-    const template = document.createElement('div');
-    template.innerHTML = codeRail(level, run);
-    for (const selector of ['.rail-summary', '.rail-list', '.rail-note']) {
-      const oldPart = rail.querySelector<HTMLElement>(selector);
-      const newPart = template.querySelector<HTMLElement>(selector);
-      if (oldPart && newPart && oldPart.innerHTML !== newPart.innerHTML)
-        oldPart.innerHTML = newPart.innerHTML;
-    }
-  }
+
+  // Blockly stays mounted while the current and next real block are highlighted.
+  const inFlight = animationPending && animatingBlockId && animatingNextState
+    ? {blockId:animatingBlockId,destination:animatingNextState} : undefined;
+  const focus = executionFocus(level,activeProgram,run,inFlight);
+  editor?.highlight(focus.activeId,focus.upcomingId);
+  const currentLabel = root.querySelector<HTMLElement>('#workspace-current-action');
+  const nextLabel = root.querySelector<HTMLElement>('#workspace-next-action');
+  if (currentLabel && currentLabel.textContent !== focus.activeLabel)
+    currentLabel.textContent = focus.activeLabel;
+  if (nextLabel && nextLabel.textContent !== focus.upcomingLabel)
+    nextLabel.textContent = focus.upcomingLabel;
+
   const values = [
     run.x + ',' + run.y,
     ({N:'NOORD', E:'OOST', S:'ZUID', W:'WEST'} as const)[run.direction],
@@ -395,15 +438,13 @@ function refreshPlayStatus() {
       run.phase === 'won' ? 'GESLAAGD' : 'MISLUKT'
   ];
   const stats = root.querySelectorAll<HTMLElement>('.game-hud strong');
-  stats.forEach((node, i) => {
-    if (node.textContent !== values[i]) node.textContent = values[i];
-  });
-  stats[3]?.classList.toggle('is-running', run.phase === 'running');
+  stats.forEach((node,i) => { if (node.textContent !== values[i]) node.textContent = values[i]; });
+  stats[3]?.classList.toggle('is-running',run.phase === 'running');
   const message = root.querySelector<HTMLElement>('.game-panel .run-message');
   if (message && message.textContent !== run.message) message.textContent = run.message;
   const playButton = root.querySelector<HTMLButtonElement>('[data-action="run"]');
-  playButton?.classList.toggle('is-active', autoRun);
-  playButton?.setAttribute('aria-pressed', String(autoRun));
+  playButton?.classList.toggle('is-active',autoRun);
+  playButton?.setAttribute('aria-pressed',String(autoRun));
   const stepButton = root.querySelector<HTMLButtonElement>('[data-action="step"]');
   if (stepButton) stepButton.disabled = animationPending && autoRun;
 }
@@ -416,19 +457,23 @@ function scheduleNextStep(delay = 90) {
 
 async function runOneStep() {
   const level = currentRoute.level;
-  if (currentRoute.screen !== 'play' || !level || !activeRun || !activeProgram ||
+  if (currentRoute.screen !== 'workspace' || workspaceMode !== 'test' || !level || !activeRun || !activeProgram ||
       animationPending || activeRun.phase === 'won' || activeRun.phase === 'failed') return;
   if (resultTimer !== undefined) { clearTimeout(resultTimer); resultTimer = undefined; }
   const token = executionToken;
   const before = activeRun;
   const next = executeProgramStep(level, activeProgram, before);
   animationPending = true;
+  animatingBlockId = visibleInstruction(activeProgram,before.pc)?.instruction.blockId;
+  animatingNextState = next;
   activeRun.phase = autoRun ? 'running' : 'paused';
   refreshPlayStatus();
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   await animateLevelRun(level.id, before, next, motionDuration(before, next, reduce));
-  if (token !== executionToken || currentRoute.screen !== 'play' || currentRoute.level?.id !== level.id) return;
+  if (token !== executionToken || currentRoute.screen !== 'workspace' || workspaceMode !== 'test' || currentRoute.level?.id !== level.id) return;
   animationPending = false;
+  animatingBlockId = undefined;
+  animatingNextState = undefined;
   activeRun = next;
   if (next.phase === 'won' || next.phase === 'failed') {
     autoRun = false;
@@ -444,7 +489,7 @@ async function runOneStep() {
 }
 
 function play() {
-  if (currentRoute.screen !== 'play' || !currentRoute.level || !activeRun || !activeProgram ||
+  if (currentRoute.screen !== 'workspace' || workspaceMode !== 'test' || !currentRoute.level || !activeRun || !activeProgram ||
       autoRun || activeRun.phase === 'won' || activeRun.phase === 'failed') return;
   autoRun = true;
   activeRun.phase = 'running';
@@ -454,7 +499,7 @@ function play() {
 }
 
 function pause() {
-  if (currentRoute.screen !== 'play' || !currentRoute.level || !activeRun) return;
+  if (currentRoute.screen !== 'workspace' || workspaceMode !== 'test' || !currentRoute.level || !activeRun) return;
   if (!autoRun && !animationPending) return;
   autoRun = false;
   if (timer !== undefined) { clearTimeout(timer); timer = undefined; }
@@ -465,7 +510,7 @@ function pause() {
 }
 
 function singleStep() {
-  if (currentRoute.screen !== 'play' || !currentRoute.level || !activeRun) return;
+  if (currentRoute.screen !== 'workspace' || workspaceMode !== 'test' || !currentRoute.level || !activeRun) return;
   autoRun = false;
   if (timer !== undefined) { clearTimeout(timer); timer = undefined; }
   if (animationPending) {
@@ -486,9 +531,9 @@ root.addEventListener('click', event => {
   const level = currentRoute.level;
   if (action === 'to-levels') navigate('#/levels');
   if (action === 'open-level' && levelById(value)) navigate(routeFor(levelById(value)!, 'briefing'));
-  if (action === 'to-editor' && level) navigate(routeFor(level,'editor'));
+  if (action === 'to-editor' && level) navigate(routeFor(level,'workspace'));
   if (action === 'to-play' && level) prepareRun(level);
-  if (action === 'back-to-editor' && level) navigate(routeFor(level,'editor'));
+  if (action === 'back-to-editor') returnToEditor();
   if (action === 'reset-program' && level && editor) {
     editor.reset();
     reportEditor('Voorbeeldprogramma hersteld.');
@@ -496,7 +541,7 @@ root.addEventListener('click', event => {
   if (action === 'run') play();
   if (action === 'pause') pause();
   if (action === 'step') singleStep();
-  if (action === 'restart' && level && currentRoute.screen === 'play') {
+  if (action === 'restart' && level && currentRoute.screen === 'workspace' && workspaceMode === 'test') {
     stopTimers();
     activeRun = initialProgramState(level);
     snapLevelRun(level.id, activeRun);
@@ -505,10 +550,14 @@ root.addEventListener('click', event => {
 });
 window.addEventListener('hashchange', onRouteChange);
 currentRoute = readRoute();
+workspaceMode = currentRoute.initialMode ?? 'edit';
+if (currentRoute.screen === 'workspace' && currentRoute.level &&
+    window.location.hash !== routeFor(currentRoute.level,'workspace'))
+  window.history.replaceState(null,'',routeFor(currentRoute.level,'workspace'));
 if (currentRoute.level) {
   activeLevelId = currentRoute.level.id;
   activeRun = initialProgramState(currentRoute.level);
-  if (currentRoute.screen === 'play') {
+  if (currentRoute.screen === 'workspace' && workspaceMode === 'test') {
     try { activeProgram=compileWorkspace(record(currentRoute.level).workspace ?? defaultWorkspace(currentRoute.level,record(currentRoute.level).blocks),currentRoute.level); }
     catch(error) { activeProgram=null;activeRun.phase='failed';activeRun.message=error instanceof Error?error.message:'Ongeldig programma.'; }
   }

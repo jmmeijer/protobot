@@ -6,9 +6,32 @@ import { defaultWorkspace } from './program';
 export interface BlocklyEditorHandle {
   save(): object;
   reset(): void;
-  highlight(blockId?: string): void;
+  /** Keep all blocks visible; do not recreate the workspace between modes. */
+  setReadOnly(readOnly: boolean): void;
+  /** Active instruction and a subtler indication of the upcoming instruction. */
+  highlight(blockId?: string, nextBlockId?: string): void;
+  resize(): void;
   dispose(): void;
 }
+const protobotTheme = Blockly.Theme.defineTheme('ProtoBot', {
+  base: Blockly.Themes.Zelos,
+  componentStyles: {
+    workspaceBackgroundColour: '#122125',
+    toolboxBackgroundColour: '#142a2f',
+    toolboxForegroundColour: '#e3f2f0',
+    flyoutBackgroundColour: '#193238',
+    flyoutForegroundColour: '#e3f2f0',
+    flyoutOpacity: 1,
+    scrollbarColour: '#557a7c',
+    scrollbarOpacity: 0.7,
+    insertionMarkerColour: '#7cf4d9',
+    insertionMarkerOpacity: 0.5,
+    selectedGlowColour: '#7cf4d9',
+    selectedGlowOpacity: 0.8,
+    cursorColour: '#7cf4d9',
+    markerColour: '#7cf4d9'
+  }
+});
 let registered = false;
 function registerBlocks(): void {
   if (registered) return;
@@ -74,7 +97,7 @@ export function mountBlocklyEditor(
 ):BlocklyEditorHandle {
   registerBlocks();
   const workspace = Blockly.inject(element, {
-    toolbox:toolbox(level),renderer:'zelos',theme:Blockly.Themes.Zelos,
+    toolbox:toolbox(level),renderer:'zelos',theme:protobotTheme,
     trashcan:true,scrollbars:true,
     zoom:{controls:true,wheel:true,startScale:0.9,minScale:0.55,maxScale:1.5,scaleSpeed:1.12},
     move:{scrollbars:true,drag:true,wheel:true},
@@ -94,7 +117,7 @@ export function mountBlocklyEditor(
   const snapshot=()=>Blockly.serialization.workspaces.save(workspace) as object;
   const changed=()=>onChange(snapshot(),Math.max(0,workspace.getAllBlocks(false).length-1));
   const listener=(event:Blockly.Events.Abstract)=>{
-    if (event.isUiEvent) return;
+    if (event.isUiEvent || workspace.isReadOnly()) return;
     if (event.type === Blockly.Events.BLOCK_CREATE || event.type === Blockly.Events.BLOCK_DELETE ||
         event.type === Blockly.Events.BLOCK_MOVE || event.type === Blockly.Events.BLOCK_CHANGE) changed();
   };
@@ -102,17 +125,59 @@ export function mountBlocklyEditor(
   const observer = new ResizeObserver(()=>Blockly.svgResize(workspace));
   observer.observe(element);
   let disposed = false;
-  requestAnimationFrame(()=>{ if(!disposed) Blockly.svgResize(workspace); });
+  let readOnly = false;
+  let activeId: string | undefined;
+  let upcomingId: string | undefined;
+  const resize = () => {
+    if (!disposed) Blockly.svgResize(workspace);
+  };
+  const updateHighlight = (blockId?:string, nextBlockId?:string) => {
+    if (disposed) return;
+    const active = blockId && workspace.getBlockById(blockId) ? blockId : undefined;
+    const upcoming = nextBlockId && nextBlockId !== active && workspace.getBlockById(nextBlockId)
+      ? nextBlockId : undefined;
+    if (active === activeId && upcoming === upcomingId) return;
+    if (activeId) workspace.getBlockById(activeId)?.removeClass('protobot-block-active');
+    if (upcomingId) workspace.getBlockById(upcomingId)?.removeClass('protobot-block-next');
+    activeId = active;
+    upcomingId = upcoming;
+    workspace.highlightBlock(active ?? null);
+    if (active) {
+      const block = workspace.getBlockById(active);
+      block?.addClass('protobot-block-active');
+      // Only scroll when a block is outside the visible editor: no jumping
+      // between instructions already on screen.
+      const shape = block?.getSvgRoot()?.querySelector('.blocklyPath');
+      const bounds = shape?.getBoundingClientRect();
+      const viewport = element.getBoundingClientRect();
+      if (bounds && (bounds.bottom < viewport.top + 28 || bounds.top > viewport.bottom - 42 ||
+          bounds.right < viewport.left + 35 || bounds.left > viewport.right - 35)) {
+        workspace.centerOnBlock(active);
+      }
+    }
+    if (upcoming) workspace.getBlockById(upcoming)?.addClass('protobot-block-next');
+  };
+  requestAnimationFrame(resize);
   return {
     save:snapshot,
     reset:()=>{
+      if (readOnly) return;
+      updateHighlight();
       apply(defaultWorkspace(level));
       changed();
     },
-    highlight:(blockId?:string)=>{
-      workspace.highlightBlock(blockId && workspace.getBlockById(blockId) ? blockId : null);
-      if (blockId && workspace.getBlockById(blockId)) workspace.centerOnBlock(blockId,true);
+    setReadOnly:(value:boolean)=>{
+      if (disposed || value === readOnly) return;
+      readOnly = value;
+      workspace.hideChaff();
+      workspace.setIsReadOnly(value);
+      workspace.getToolbox()?.setVisible(!value);
+      element.classList.toggle('is-readonly',value);
+      resize();
+      requestAnimationFrame(resize);
     },
+    highlight:updateHighlight,
+    resize,
     dispose:()=>{
       if(disposed)return;
       disposed=true;

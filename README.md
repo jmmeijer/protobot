@@ -35,6 +35,16 @@ Lees [het technisch ontwerp](docs/technisch-ontwerp.md) en [het schermentraject]
 
 De workflow bouwt en test iedere pull request gericht op `main`. **Elke push naar `main` (waaronder een merge) publiceert na geslaagde build en tests automatisch de inhoud van `dist/` naar GitHub Pages.** Handmatig starten via `workflow_dispatch` op `main` blijft ook mogelijk. Stel onder Settings → Pages de bron in op **GitHub Actions**; er hoeft geen map te worden geselecteerd.
 
+## Geïntegreerde programmeer- en testwerkruimte
+
+De voormalige afzonderlijke programmeer- en testpagina's zijn samengevoegd in `#/level/<id>/workspace`. De oude `/editor`- en `/play`-links blijven werken als verwijzing naar dezelfde werkruimte.
+
+- **Programmeren:** Blockly krijgt ongeveer 65% van de breedte; de kaart rechts blijft zichtbaar.
+- **Testen:** Blockly blijft met alle eigen blokken in beeld, maar wordt vergrendeld. Het palet verdwijnt en de kaart krijgt ongeveer 65% van de breedte.
+- Het **actieve Blockly-blok** krijgt een turquoise rand en het komende blok een subtielere markering. De markering blijft staan tijdens robotanimaties en pauzeren.
+- De Blockly-toolbox en flyout gebruiken een eigen donker ProtoBot-thema met hoog contrast.
+- De overgang tussen beide modi bouwt geen nieuwe Blockly-workspace of Canvas op. Op mobiel worden de panelen gestapeld: in testmodus komt de kaart bovenaan.
+
 ## Vloeiende beweging bij het testen
 
 De Blockly-uitvoering houdt het speelveld nu permanent gemount: de robot rijdt in 540 ms van tegel naar tegel, draait in 380 ms over de kortste kwartslag en toont bij sensorinstructies een kleine scanpuls. Pauzeren bevriest de beweging halverwege; afspelen hervat vanaf dezelfde positie. De huidige en volgende instructie en HUD worden afzonderlijk bijgewerkt, zonder het hele scherm opnieuw te renderen. De instelling voor verminderde beweging wordt gerespecteerd.
