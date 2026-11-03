@@ -12,3 +12,11 @@
 .field-preview .level-canvas { max-width: 275px; }
 .game-panel .level-canvas { max-width: 510px; }
 .blockly-editor-map .level-canvas, .editor-map .level-canvas { max-width: 350px; }
+
+.panel-top .grid-toggle { width: 44px; height: 44px; flex: none; }
+.panel-top .grid-toggle .ico { width: 20px; }
+.grid-toggle[aria-pressed="true"] {
+  color: #082225;
+  background: var(--cyan);
+  border-color: var(--cyan);
+}

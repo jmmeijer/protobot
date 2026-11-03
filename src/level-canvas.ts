@@ -13,6 +13,7 @@ let cleanup: (() => void) | undefined;
 
 interface BoardController {
   animate(from: RunState, to: RunState, duration: number): Promise<void>;
+  repaint(): void;
   pause(): void;
   resume(): void;
   snap(run: RunState): void;
@@ -20,6 +21,18 @@ interface BoardController {
   dispose(): void;
 }
 const boards = new Map<string, BoardController>();
+
+const gridPreference = 'protobot:settings:survey-grid';
+export let surveyGridVisible = true;
+try { surveyGridVisible = localStorage.getItem(gridPreference) !== 'off'; }
+catch { /* Storage is optional. */ }
+
+export function toggleSurveyGrid(): void {
+  surveyGridVisible = !surveyGridVisible;
+  try { localStorage.setItem(gridPreference, surveyGridVisible ? 'on' : 'off'); }
+  catch { /* Keep the preference for this session. */ }
+  for (const board of boards.values()) board.repaint();
+}
 
 function loadImage(src: string): Promise<HTMLImageElement | null> {
   return new Promise(resolve => {
@@ -231,7 +244,7 @@ export function mountLevelCanvases(
       context.drawImage(background, 0, 0, canvas.width, canvas.height);
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
       context.imageSmoothingEnabled = false;
-      drawSurveyGrid(context, level.tiles[0].length, level.tiles.length, tileSize);
+      if (surveyGridVisible) drawSurveyGrid(context, level.tiles[0].length, level.tiles.length, tileSize);
       drawRobot(context, pose, tileSize, loaded?.robot ?? null);
     };
 
@@ -303,6 +316,7 @@ export function mountLevelCanvases(
     };
 
     const instance: BoardController = {
+      repaint: paint,
       animate(from, to, duration) {
         cancel();
         if (!active) return Promise.resolve();

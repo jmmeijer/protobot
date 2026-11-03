@@ -1,7 +1,7 @@
 import { installButton } from './install';
 import './styles.css';
 import './campaign.css';
-import { animateLevelRun, mountLevelCanvases, pauseLevelAnimation, resumeLevelAnimation, snapLevelRun, setLevelCanvasVariant, unmountLevelCanvases } from './level-canvas';
+import { animateLevelRun, mountLevelCanvases, pauseLevelAnimation, resumeLevelAnimation, snapLevelRun, setLevelCanvasVariant, surveyGridVisible, toggleSurveyGrid, unmountLevelCanvases } from './level-canvas';
 import { motionDuration } from './robot-motion';
 import './blockly-editor.css';
 import type { BlocklyEditorHandle } from './blockly-editor';
@@ -64,6 +64,7 @@ function icon(name: string): string {
     lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
     code:'<path d="m8 8-4 4 4 4m8-8 4 4-4 4M14 4l-4 16"/>',
     terminal:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3m6 0h4"/>',
+    grid:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18m6-18v18M3 9h18M3 15h18"/>',
     map:'<path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3zM9 3v15m6-12v15"/>',
     info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-9v.5"/>',
     trash:'<path d="M3 6h18M8 6V4h8v2m3 0-1 14H6L5 6m5 4v7m4-7v7"/>',
@@ -223,6 +224,11 @@ function button(action: string, title: string, glyph: string, className = '', da
     (data ? ' data-value="' + escapeText(data) + '"' : '') +
     ' aria-label="' + escapeText(title) + '" title="' + escapeText(title) + '">' + icon(glyph) + '</button>';
 }
+function gridButton(): string {
+  return '<button type="button" class="icon-btn grid-toggle" data-action="toggle-grid" ' +
+    'aria-label="Tegelraster" aria-pressed="' + surveyGridVisible + '" title="Tegelraster aan/uit">' +
+    icon('grid') + '</button>';
+}
 function header(): string {
   return '<header class="topbar"><a class="brand" href="#/" aria-label="ProtoBot, terug naar start">' +
     '<span class="brand-mark">P<span class="brand-eye">•</span></span><span class="brand-name">PROTO<span>BOT</span><small>ROVER PROTOCOL</small></span></a>' +
@@ -293,7 +299,7 @@ function briefingScreen(level: Level): string {
     hintMarkup(level)+
     '<div class="briefing-actions"><button class="btn primary" data-action="to-editor">OPEN PROGRAMMEERTERMINAL '+icon('next')+'</button>'+
     '<a class="btn ghost" href="#/levels">'+icon('back')+' MISSIEOVERZICHT</a></div></section>'+
-    '<aside class="panel briefing-map"><div class="panel-top"><span>TERREINVERKENNING</span><span>CAM 01</span></div>'+
+    '<aside class="panel briefing-map"><div class="panel-top"><span>TERREINVERKENNING</span>'+gridButton()+'</div>'+
     map(level)+'<div class="map-legend"><span><i class="dot bot-dot"></i> START</span>'+
     '<span><i class="dot goal-dot"></i> DOEL</span><span><i class="dot hazard-dot"></i> GEVAAR</span></div></aside></div></main>';
 }
@@ -333,7 +339,7 @@ function workspaceScreen(level: Level): string {
       hintMarkup(level)+
     '</section>'+
     '<section class="panel blockly-editor-map workspace-game-panel game-panel">'+
-      '<div class="panel-top"><span>VELDCAMERA / SECTOR 07</span><span>CAM 01 <i class="rec-dot"></i> LIVE</span></div>'+
+      '<div class="panel-top"><span>VELDCAMERA / SECTOR 07</span><span><i class="rec-dot"></i> LIVE '+gridButton()+'</span></div>'+
       '<div class="mission-variant" id="mission-variant" aria-live="polite">'+
         'KAART '+(activeVariantIndex+1)+' / '+variantCount(level)+' — '+escapeText(variantLabel(level,activeVariantIndex))+
       '</div>'+
@@ -599,6 +605,11 @@ root.addEventListener('click', event => {
   const action = buttonEl.dataset.action;
   const value = buttonEl.dataset.value ?? '';
   const level = currentRoute.level;
+  if (action === 'toggle-grid') {
+    toggleSurveyGrid();
+    buttonEl.setAttribute('aria-pressed', String(surveyGridVisible));
+    return;
+  }
   if (action === 'to-levels') navigate('#/levels');
   if (action === 'open-level' && levelById(value)) navigate(routeFor(levelById(value)!, 'briefing'));
   if (action === 'next-mission' && levelById(value)) navigate(routeFor(levelById(value)!, 'briefing'));
