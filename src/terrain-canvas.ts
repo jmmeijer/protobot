@@ -1,5 +1,5 @@
-import { atlasCoordinates, type TerrainMap, type TerrainName } from './terrain-model';
-import { autotileLayers, makeAutotileMask, MASK_RESOLUTION } from './autotile';
+import { atlasCoordinates, type TerrainMap, type TerrainName } from './terrain-model.ts';
+import { autotileLayers, makeAutotileMask, MASK_RESOLUTION } from './autotile.ts';
 import type { Tile } from './game';
 
 const ATLAS_TILE_PX = 128;
