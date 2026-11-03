@@ -1,5 +1,5 @@
 import './level-canvas.css';
-import { initialState, levelById, type Level, type RunState } from './game';
+import { initialState, levelById, type Level, type MissionObject, type RunState } from './game';
 import { createTerrainPainter, levelTerrain } from './terrain-canvas';
 import type { TerrainMap, TerrainName } from './terrain-model';
 import { poseAt, restingPose, type RobotPose } from './robot-motion';
@@ -16,6 +16,7 @@ interface BoardController {
   pause(): void;
   resume(): void;
   snap(run: RunState): void;
+  setMap(map: Level): void;
   dispose(): void;
 }
 const boards = new Map<string, BoardController>();
@@ -79,6 +80,29 @@ function drawGoal(context: CanvasRenderingContext2D, level: Level, size: number)
   context.stroke();
   context.restore();
 }
+/** Mark mission objects on a separate logical layer, independent of terrain. */
+function drawMissionObjects(context:CanvasRenderingContext2D,objects:readonly MissionObject[],size:number){
+  const letters:Record<MissionObject['type'],string>={
+    radio:'R',geiger:'G',relay:'E',beacon:'B',sensor:'S',pump:'P'
+  };
+  for(const object of objects){
+    const cx=(object.x+.5)*size,cy=(object.y+.5)*size;
+    const side=size*.43;
+    context.save();
+    context.fillStyle='#142d34';
+    context.fillRect(cx-side/2,cy-side/2,side,side);
+    context.strokeStyle='#8cebd8';
+    context.lineWidth=Math.max(1,size*.032);
+    context.strokeRect(cx-side/2,cy-side/2,side,side);
+    context.font='bold '+Math.max(10,Math.floor(size*.26))+'px monospace';
+    context.textAlign='center';
+    context.textBaseline='middle';
+    context.fillStyle='#fbdea0';
+    context.fillText(letters[object.type],cx,cy+size*.01);
+    context.restore();
+  }
+}
+
 /** Draw only the animated layer; terrain and goal are cached separately. */
 function drawRobot(context: CanvasRenderingContext2D, pose: RobotPose,
   size: number, image: HTMLImageElement | null) {
@@ -136,7 +160,8 @@ function sizeFor(canvas: HTMLCanvasElement, level: Level): number {
  * The screen is never replaced while a Blockly instruction is executed.
  */
 export function mountLevelCanvases(
-  root: HTMLElement, currentRun: (level: Level) => RunState | undefined
+  root: HTMLElement, currentRun: (level: Level) => RunState | undefined,
+  mapForLevel: (level:Level)=>Level = level=>level
 ): void {
   unmountLevelCanvases();
   const elements = [...root.querySelectorAll<HTMLCanvasElement>('canvas[data-level-board]')];
@@ -144,12 +169,13 @@ export function mountLevelCanvases(
   const instances: BoardController[] = [];
 
   for (const canvas of elements) {
-    const level = levelById(canvas.dataset.levelId ?? '');
-    if (!level) continue;
+    const baseLevel = levelById(canvas.dataset.levelId ?? '');
+    if (!baseLevel) continue;
+    let level = mapForLevel(baseLevel);
     const context = canvas.getContext('2d');
     if (!context) continue;
     const painter = createTerrainPainter();
-    const terrainMap = levelTerrain(level.tiles);
+    let terrainMap = levelTerrain(level.tiles);
     const background = document.createElement('canvas');
     const backgroundContext = background.getContext('2d');
     if (!backgroundContext) continue;
@@ -200,6 +226,7 @@ export function mountLevelCanvases(
         if (level.tiles[y][x] === 'wall') drawWall(backgroundContext, x, y, STATIC_TILE_SIZE);
       }
       drawGoal(backgroundContext, level, STATIC_TILE_SIZE);
+      drawMissionObjects(backgroundContext,level.objects??[],STATIC_TILE_SIZE);
       paint();
     };
 
@@ -284,6 +311,14 @@ export function mountLevelCanvases(
         pose = restingPose(run);
         paint();
       },
+      setMap(next) {
+        cancel();
+        level = next;
+        terrainMap = levelTerrain(next.tiles);
+        pose = restingPose(currentRun(next) ?? initialState(next));
+        rebuildBackground();
+        resizeCanvas();
+      },
       dispose() {
         active = false;
         cancel();
@@ -311,6 +346,7 @@ export function animateLevelRun(levelId: string, from: RunState, to: RunState,
   duration: number): Promise<void> {
   return boards.get(levelId)?.animate(from, to, duration) ?? Promise.resolve();
 }
+export function setLevelCanvasVariant(levelId: string, map: Level): void { boards.get(levelId)?.setMap(map); }
 export function pauseLevelAnimation(levelId: string): void { boards.get(levelId)?.pause(); }
 export function resumeLevelAnimation(levelId: string): void { boards.get(levelId)?.resume(); }
 export function snapLevelRun(levelId: string, run: RunState): void { boards.get(levelId)?.snap(run); }

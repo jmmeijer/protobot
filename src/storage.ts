@@ -33,10 +33,13 @@ export function loadLevel(level: Level): SavedLevel {
     if(!parsed || typeof parsed!=='object') return fallback;
     const saved=parsed as Partial<SavedLevel>;
     const sameRevision=saved.revision===level.revision;
-    const blocks= sameRevision && Array.isArray(saved.blocks) && saved.blocks.length<=100 && saved.blocks.every(isBlock)
+    // Preserve the editable block workspace across a changed mission revision,
+    // but never carry an old win over to a new puzzle or new map variants.
+    const blocks=Array.isArray(saved.blocks) && saved.blocks.length<=100 && saved.blocks.every(isBlock)
       ? saved.blocks : fallback.blocks;
-    const workspace=sameRevision && isWorkspace(saved.workspace) ? saved.workspace : undefined;
-    return {revision:level.revision,blocks,completed:saved.completed===true,...(workspace?{workspace}:{})};
+    const workspace=isWorkspace(saved.workspace) ? saved.workspace : undefined;
+    return {revision:level.revision,blocks,completed:sameRevision && saved.completed===true,
+      ...(workspace?{workspace}:{})};
   } catch {
     warning='Opslaan is niet beschikbaar in deze browser. Je kunt wel verder spelen.';
     return memory.get(key(level)) ?? fallback;

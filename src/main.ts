@@ -1,5 +1,6 @@
 import './styles.css';
-import { animateLevelRun, mountLevelCanvases, pauseLevelAnimation, resumeLevelAnimation, snapLevelRun, unmountLevelCanvases } from './level-canvas';
+import './campaign.css';
+import { animateLevelRun, mountLevelCanvases, pauseLevelAnimation, resumeLevelAnimation, snapLevelRun, setLevelCanvasVariant, unmountLevelCanvases } from './level-canvas';
 import { motionDuration } from './robot-motion';
 import './blockly-editor.css';
 import type { BlocklyEditorHandle } from './blockly-editor';
@@ -7,7 +8,7 @@ import { compileWorkspace, defaultWorkspace, executeProgramStep, initialProgramS
 import { executionFocus } from './execution-focus';
 import { mapPrototypeMarkup, mountMapPrototype, unmountMapPrototype } from './map-prototype';
 import {
-  initialState, levelById, levels,
+  initialState, levelById, levelVariant, variantCount, variantLabel, levels,
   type Level, type RunState
 } from './game';
 import { loadLevel, saveLevel, storageWarning } from './storage';
@@ -30,6 +31,16 @@ let workspaceMode: WorkspaceMode = 'edit';
 let animatingBlockId: string | undefined;
 let animatingNextState: ProgramRunState | undefined;
 let activeLevelId = '';
+let activeVariantIndex = 0;
+let pendingVariantIndex: number | null = null;
+let variantResults: Array<'pending'|'passed'|'failed'> = [];
+let hintIndex = 0;
+function currentMap(level:Level):Level { return levelVariant(level,activeVariantIndex); }
+function resetVariants(level:Level) {
+  activeVariantIndex = 0;
+  pendingVariantIndex = null;
+  variantResults = Array.from({length:variantCount(level)},()=> 'pending' as const);
+}
 let timer: ReturnType<typeof setTimeout> | undefined;
 let autoRun = false;
 let animationPending = false;
@@ -91,6 +102,7 @@ function stopTimers() {
   if (resultTimer !== undefined) clearTimeout(resultTimer);
   timer = undefined;
   resultTimer = undefined;
+  pendingVariantIndex = null;
   if (currentRoute.level && activeRun) snapLevelRun(currentRoute.level.id, activeRun);
 }
 function closeEditor() {
@@ -110,7 +122,9 @@ function onRouteChange() {
   unmountMapPrototype();
   stopTimers();
   currentRoute = readRoute();
+  hintIndex = 0;
   if (currentRoute.level && (currentRoute.level.id !== activeLevelId || currentRoute.screen === 'workspace')) {
+    resetVariants(currentRoute.level);
     activeRun = initialProgramState(currentRoute.level);
     activeLevelId = currentRoute.level.id;
   }
@@ -163,7 +177,9 @@ function prepareRun(level:Level): boolean {
     saveLevel(level,saved);
     stopTimers();
     activeProgram = program;
+    resetVariants(level);
     activeRun = initialProgramState(level);
+    setLevelCanvasVariant(level.id,level);
     snapLevelRun(level.id, activeRun);
     workspaceMode = 'test';
     editor.setReadOnly(true);
@@ -186,7 +202,9 @@ function returnToEditor() {
   if (currentRoute.screen !== 'workspace' || !currentRoute.level) return;
   const level = currentRoute.level;
   stopTimers();
+  resetVariants(level);
   activeRun = initialProgramState(level);
+  setLevelCanvasVariant(level.id,level);
   snapLevelRun(level.id, activeRun);
   workspaceMode = 'edit';
   editor?.setReadOnly(false);
@@ -251,25 +269,36 @@ function levelsScreen(): string {
       '<div class="mission-body"><div class="mission-kicker">' + escapeText(level.subtitle) + '</div>' +
       '<h2>' + escapeText(level.title) + '</h2><p>' + escapeText(level.story) + '</p>' +
       '<button class="btn secondary" data-action="open-level" data-value="' + level.id + '">BEKIJK OPDRACHT ' + icon('next') + '</button></div></article>'
-    ).join('') + '</div><div class="future-notice">' + icon('lock') +
-    '<div><strong>Nog 8 missies in voorbereiding</strong><span>Nieuwe uitdagingen worden later toegevoegd.</span></div></div>' +
+    ).join('') + '</div><div class="future-notice">' + icon('check') +
+    '<div><strong>10 missies beschikbaar</strong><span>Nieuwe blokken en uitdagingen komen vrij naarmate de missies moeilijker worden.</span></div></div>' +
     '<a class="btn secondary" href="#/map-prototype" style="margin-top:23px">KAARTLAB: TEST TERREINEN ' + icon('map') + '</a></main>';
 }
 function crumb(level: Level, step: string): string {
   return '<nav class="breadcrumb" aria-label="Navigatie"><a href="#/levels">MISSIES</a><span>/</span><a href="' +
     routeFor(level,'briefing') + '">MISSIE ' + String(level.number).padStart(2,'0') + '</a><span>/</span><b>' + step + '</b></nav>';
 }
+function hintMarkup(level:Level):string {
+  return '<div class="mission-hint-panel">'+
+    '<button class="btn ghost" type="button" data-action="show-hint">'+icon('info')+' TOON HINT</button>'+
+    '<span id="mission-hint" aria-live="polite"></span>'+
+    '</div>';
+}
 function briefingScreen(level: Level): string {
   return '<main class="content screen-enter">' + crumb(level,'OPDRACHT') +
-    '<div class="briefing-layout"><section class="panel briefing-text"><div class="eyebrow">MISSIEDOSSIER / ' +
-    String(level.number).padStart(2,'0') + '</div><h1>' + escapeText(level.title) + '</h1><p class="lead">' + escapeText(level.story) + '</p>' +
-    '<div class="objective-box"><div class="objective-icon">' + icon('terminal') + '</div>' +
-    '<div><span>JOUW OPDRACHT</span><p>' + escapeText(level.objective) + '</p></div></div>' +
-    '<div class="briefing-actions"><button class="btn primary" data-action="to-editor">OPEN PROGRAMMEERTERMINAL ' + icon('next') + '</button>' +
-    '<a class="btn ghost" href="#/levels">' + icon('back') + ' MISSIEOVERZICHT</a></div></section>' +
-    '<aside class="panel briefing-map"><div class="panel-top"><span>TERREINVERKENNING</span><span>CAM 01</span></div>' + map(level) +
-    '<div class="map-legend"><span><i class="dot bot-dot"></i> START</span><span><i class="dot goal-dot"></i> DOEL</span>' +
-    '<span><i class="dot hazard-dot"></i> GEVAAR</span></div></aside></div></main>';
+    '<div class="briefing-layout"><section class="panel briefing-text"><div class="eyebrow">MISSIEDOSSIER / '+
+    String(level.number).padStart(2,'0')+'</div><h1>'+escapeText(level.title)+'</h1>'+
+    '<p class="lead">'+escapeText(level.story)+'</p>'+
+    '<div class="objective-box"><div class="objective-icon">'+icon('terminal')+'</div>'+
+    '<div><span>JOUW OPDRACHT</span><p>'+escapeText(level.objective)+'</p></div></div>'+
+    '<p class="mission-learning"><strong>LEERDOEL</strong> '+escapeText((level.learningGoals??[]).join(' · '))+'</p>'+
+    (level.maxBlocks?'<p class="mission-restriction">Maximaal '+level.maxBlocks+' gekoppelde codeblokken (zonder startblok).</p>':'')+
+    (variantCount(level)>1?'<p class="mission-restriction">Hetzelfde programma moet '+variantCount(level)+' kaartvarianten oplossen.</p>':'')+
+    hintMarkup(level)+
+    '<div class="briefing-actions"><button class="btn primary" data-action="to-editor">OPEN PROGRAMMEERTERMINAL '+icon('next')+'</button>'+
+    '<a class="btn ghost" href="#/levels">'+icon('back')+' MISSIEOVERZICHT</a></div></section>'+
+    '<aside class="panel briefing-map"><div class="panel-top"><span>TERREINVERKENNING</span><span>CAM 01</span></div>'+
+    map(level)+'<div class="map-legend"><span><i class="dot bot-dot"></i> START</span>'+
+    '<span><i class="dot goal-dot"></i> DOEL</span><span><i class="dot hazard-dot"></i> GEVAAR</span></div></aside></div></main>';
 }
 function workspaceScreen(level: Level): string {
   if (!activeRun) activeRun = initialProgramState(level);
@@ -304,10 +333,15 @@ function workspaceScreen(level: Level): string {
         '<div class="next-instruction">VOLGENDE: <span id="workspace-next-action">—</span></div>'+
       '</div>'+
       '<p id="blockly-editor-status" class="blockly-editor-status" role="status" aria-live="polite">Blokken laden…</p>'+
+      hintMarkup(level)+
     '</section>'+
     '<section class="panel blockly-editor-map workspace-game-panel game-panel">'+
       '<div class="panel-top"><span>VELDCAMERA / SECTOR 07</span><span>CAM 01 <i class="rec-dot"></i> LIVE</span></div>'+
-      map(level,run)+
+      '<div class="mission-variant" id="mission-variant" aria-live="polite">'+
+        'KAART '+(activeVariantIndex+1)+' / '+variantCount(level)+' — '+escapeText(variantLabel(level,activeVariantIndex))+
+      '</div>'+
+      map(currentMap(level),run)+
+      '<div id="mission-variant-results" class="mission-variant-results" aria-live="polite"></div>'+
       '<div class="game-hud">'+
         '<div><span>POSITIE</span><strong>'+run.x+','+run.y+'</strong></div>'+
         '<div><span>RICHTING</span><strong>'+({N:'NOORD',E:'OOST',S:'ZUID',W:'WEST'}[run.direction])+'</strong></div>'+
@@ -376,6 +410,10 @@ function resultScreen(level: Level): string {
     '<div class="eyebrow">MISSIE ' + String(level.number).padStart(2,'0') + ' / RESULTAAT</div>' +
     '<h1>' + (won ? 'Missie geslaagd!' : 'Nog niet gelukt.') + '</h1>' +
     '<p>' + escapeText(run?.message ?? 'Voer eerst een test uit om je resultaat te zien.') + '</p>' +
+    '<p class="mission-success-log">'+(won?escapeText(level.successLog??'Missie afgerond.'): 'Controleer het gemarkeerde Blockly-blok en probeer het opnieuw.')+'</p>'+
+    '<div class="mission-result-maps">'+variantResults.map((result,i)=>
+       '<span class="mission-result-map '+result+'">Kaart '+(i+1)+': '+
+         (result==='passed'?'geslaagd':result==='failed'?'mislukt':'niet getest')+'</span>').join('')+'</div>'+
     '<div class="result-stats"><div><strong>' + (run?.steps ?? 0) + '</strong><span>UITGEVOERDE STAPPEN</span></div>' +
     '<div><strong>' + (activeProgram?.totalBlocks ?? 0) + '</strong><span>CODEBLOKKEN</span></div></div>' +
     '<div class="result-actions"><button class="btn primary" data-action="to-editor">' +
@@ -403,7 +441,8 @@ function render() {
   mountLevelCanvases(root, level => (
     route.screen === 'workspace' && route.level?.id === level.id
       ? activeRun ?? initialState(level) : initialState(level)
-  ));
+  ), level => route.screen === 'workspace' && route.level?.id === level.id
+    ? currentMap(level) : level);
   if (route.screen === 'workspace' && route.level) mountEditorScreen(route.level);
 }
 /**
@@ -419,7 +458,7 @@ function refreshPlayStatus() {
   // Blockly stays mounted while the current and next real block are highlighted.
   const inFlight = animationPending && animatingBlockId && animatingNextState
     ? {blockId:animatingBlockId,destination:animatingNextState} : undefined;
-  const focus = executionFocus(level,activeProgram,run,inFlight);
+  const focus = executionFocus(currentMap(level),activeProgram,run,inFlight);
   editor?.highlight(focus.activeId,focus.upcomingId);
   const currentLabel = root.querySelector<HTMLElement>('#workspace-current-action');
   const nextLabel = root.querySelector<HTMLElement>('#workspace-next-action');
@@ -447,6 +486,26 @@ function refreshPlayStatus() {
   playButton?.setAttribute('aria-pressed',String(autoRun));
   const stepButton = root.querySelector<HTMLButtonElement>('[data-action="step"]');
   if (stepButton) stepButton.disabled = animationPending && autoRun;
+  const indicator = root.querySelector<HTMLElement>('#mission-variant');
+  if (indicator) indicator.textContent = 'KAART '+(activeVariantIndex+1)+' / '+
+    variantCount(level)+' — '+variantLabel(level,activeVariantIndex);
+  const results = root.querySelector<HTMLElement>('#mission-variant-results');
+  if (results) results.textContent = variantResults.map((result,i)=>
+    'KAART '+(i+1)+': '+(result==='passed'?'✓':result==='failed'?'✕':i===activeVariantIndex?'ACTIEF':'—')).join('  ·  ');
+}
+
+/** Continue the very same compiled Blockly program on the next mission map. */
+function advanceVariant() {
+  const level = currentRoute.level;
+  if (!level || pendingVariantIndex === null || currentRoute.screen!=='workspace') return;
+  activeVariantIndex = pendingVariantIndex;
+  pendingVariantIndex = null;
+  const map = currentMap(level);
+  activeRun = initialProgramState(map);
+  setLevelCanvasVariant(level.id,map);
+  snapLevelRun(level.id,activeRun);
+  refreshPlayStatus();
+  if (autoRun) scheduleNextStep(420);
 }
 
 function scheduleNextStep(delay = 90) {
@@ -456,7 +515,8 @@ function scheduleNextStep(delay = 90) {
 }
 
 async function runOneStep() {
-  const level = currentRoute.level;
+  const base = currentRoute.level;
+  const level = base && currentMap(base);
   if (currentRoute.screen !== 'workspace' || workspaceMode !== 'test' || !level || !activeRun || !activeProgram ||
       animationPending || activeRun.phase === 'won' || activeRun.phase === 'failed') return;
   if (resultTimer !== undefined) { clearTimeout(resultTimer); resultTimer = undefined; }
@@ -476,9 +536,17 @@ async function runOneStep() {
   animatingNextState = undefined;
   activeRun = next;
   if (next.phase === 'won' || next.phase === 'failed') {
+    variantResults[activeVariantIndex] = next.phase === 'won' ? 'passed' : 'failed';
+    // A win on one map does not complete a multi-variant level.
+    if (next.phase === 'won' && base && activeVariantIndex < variantCount(base)-1) {
+      pendingVariantIndex = activeVariantIndex + 1;
+      refreshPlayStatus();
+      if (autoRun) timer = setTimeout(() => { timer=undefined; advanceVariant(); },850);
+      return;
+    }
     autoRun = false;
     if (timer !== undefined) { clearTimeout(timer); timer = undefined; }
-    if (next.phase === 'won') setCompleted(level);
+    if (next.phase === 'won' && base) setCompleted(base);
     refreshPlayStatus();
     resultTimer = setTimeout(() => navigate(routeFor(level, 'result')), 850);
     return;
@@ -490,8 +558,9 @@ async function runOneStep() {
 
 function play() {
   if (currentRoute.screen !== 'workspace' || workspaceMode !== 'test' || !currentRoute.level || !activeRun || !activeProgram ||
-      autoRun || activeRun.phase === 'won' || activeRun.phase === 'failed') return;
+      autoRun || (pendingVariantIndex === null && (activeRun.phase === 'won' || activeRun.phase === 'failed'))) return;
   autoRun = true;
+  if (pendingVariantIndex !== null) { advanceVariant(); return; }
   activeRun.phase = 'running';
   if (animationPending) resumeLevelAnimation(currentRoute.level.id);
   else scheduleNextStep(0);
@@ -513,6 +582,7 @@ function singleStep() {
   if (currentRoute.screen !== 'workspace' || workspaceMode !== 'test' || !currentRoute.level || !activeRun) return;
   autoRun = false;
   if (timer !== undefined) { clearTimeout(timer); timer = undefined; }
+  if (pendingVariantIndex !== null) { advanceVariant(); return; }
   if (animationPending) {
     // Finish the already-started movement and stop exactly after that block.
     resumeLevelAnimation(currentRoute.level.id);
@@ -543,9 +613,20 @@ root.addEventListener('click', event => {
   if (action === 'step') singleStep();
   if (action === 'restart' && level && currentRoute.screen === 'workspace' && workspaceMode === 'test') {
     stopTimers();
+    resetVariants(level);
     activeRun = initialProgramState(level);
+    setLevelCanvasVariant(level.id,level);
     snapLevelRun(level.id, activeRun);
     refreshPlayStatus();
+  }
+  if (action === 'show-hint' && level) {
+    const hints=level.hints??[level.hint];
+    const hint=root.querySelector<HTMLElement>('#mission-hint');
+    if (hint && hints.length) {
+      hint.textContent='HINT '+(Math.min(hintIndex+1,hints.length))+'/'+hints.length+': '+
+        hints[Math.min(hintIndex,hints.length-1)];
+      hintIndex=Math.min(hints.length,hintIndex+1);
+    }
   }
 });
 window.addEventListener('hashchange', onRouteChange);
@@ -555,6 +636,7 @@ if (currentRoute.screen === 'workspace' && currentRoute.level &&
     window.location.hash !== routeFor(currentRoute.level,'workspace'))
   window.history.replaceState(null,'',routeFor(currentRoute.level,'workspace'));
 if (currentRoute.level) {
+  resetVariants(currentRoute.level);
   activeLevelId = currentRoute.level.id;
   activeRun = initialProgramState(currentRoute.level);
   if (currentRoute.screen === 'workspace' && workspaceMode === 'test') {

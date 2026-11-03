@@ -1,0 +1,16 @@
+/* Mission campaign: progressive puzzles and multiple map variants. */
+.mission-learning{padding:15px 20px;color:#c4d8d6;font-size:13px;line-height:1.5;background:#0c2326;border-left:3px solid #75cfbd;margin:14px 0}
+.mission-learning strong{color:#7cf4d9;letter-spacing:1px}
+.mission-restriction{color:#eacb8c;padding:8px 20px;font-size:13px}
+.mission-hint-panel{margin:14px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.mission-hint-panel .btn{font-size:11px;padding:9px 12px;white-space:nowrap}
+#mission-hint{flex:1;min-width:160px;color:#e2c38c;font-size:12px;line-height:1.6}
+.mission-variant{padding:12px 15px 7px;color:#abd1d2;letter-spacing:.8px;font-size:11px;font-weight:700}
+.mission-variant-results{padding:10px 15px;color:#8fded0;white-space:normal;line-height:1.6;font-size:11px;letter-spacing:.7px;border-top:1px solid #2b4548}
+.mode-edit .mission-variant-results{display:none}
+.mission-result-maps{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;padding:10px 16px}
+.mission-result-map{display:inline-flex;border:1px solid #46565c;border-radius:4px;padding:8px 10px;font-size:11px;text-transform:uppercase;color:#b4c7c7}
+.mission-result-map.passed{color:#9af0d9;border-color:#497a6c}
+.mission-result-map.failed{color:#ffd0a6;border-color:#8c5b42}
+.mission-success-log{font-family:monospace;line-height:1.65;color:#8fe0cd;background:#0c2428;padding:14px 16px;margin:18px 22px;border-left:2px solid #4cc9b4}
+@media(max-width:640px){.mission-hint-panel{margin:9px}.mission-restriction{padding:8px 12px}.mission-learning{padding:12px}}
