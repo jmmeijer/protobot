@@ -1,7 +1,20 @@
+import { campaignLevels } from './levels.ts';
 export type Command = 'forward' | 'left' | 'right' | 'scan';
 export type Direction = 'N' | 'E' | 'S' | 'W';
 export type Phase = 'ready' | 'running' | 'paused' | 'won' | 'failed';
 export type Tile = 'grass' | 'stone' | 'dirt' | 'sand' | 'water' | 'lava' | 'wall';
+export type BlockType =
+  | 'pb_forward'|'pb_left'|'pb_right'|'pb_scan'|'pb_repeat'
+  | 'pb_if'|'pb_if_else'|'pb_path_clear'|'pb_terrain'
+  | 'pb_terrain_ahead'|'pb_terrain_under'|'pb_until'|'pb_on_goal';
+export type MissionObjectType = 'radio'|'geiger'|'relay'|'beacon'|'sensor'|'pump';
+export interface MissionObject {type:MissionObjectType; x:number; y:number; label:string}
+export interface MapVariant {
+  id:string; label:string; tiles:Tile[][];
+  start:{x:number;y:number;direction:Direction};
+  goal:{x:number;y:number};
+  objects:MissionObject[];
+}
 export interface Block { id: string; command: Command }
 export interface Level {
   id: string;
@@ -17,6 +30,14 @@ export interface Level {
   goal: { x: number; y: number };
   defaults: Command[];
   unlocked: boolean;
+  allowedBlocks?: readonly BlockType[];
+  maxBlocks?: number;
+  learningGoals?: string[];
+  hints?: string[];
+  successLog?: string;
+  objects?: MissionObject[];
+  variants?: MapVariant[];
+  starterWorkspace?: object;
 }
 export interface RunState {
   x: number; y: number; direction: Direction; pc: number;
@@ -28,35 +49,24 @@ export const commands: Record<Command, { label: string; hint: string; symbol: st
   right: { label: 'Draai rechts', hint: 'Draai 90° rechtsom', symbol: '↷' },
   scan: { label: 'Scan omgeving', hint: 'Bekijk de tegel vóór ProtoBot', symbol: '◎' }
 };
-export const levels: Level[] = [
-  {
-    id: 'radiomast', revision: 1, number: 1, title: 'De verlaten radiomast',
-    subtitle: 'Je eerste protocol', story: 'Een noodsignaal klinkt vanuit de oude radiomast. Programmeer ProtoBot om het controlepaneel te bereiken.',
-    objective: 'Bereik het groene doelvak. Gebruik vooruit en draaien.', hint: 'Twee stappen vooruit, draai rechts, dan nog één stap.',
-    tiles: [
-      ['grass','grass','grass','stone','grass'],
-      ['stone','grass','grass','grass','grass'],
-      ['grass','grass','grass','stone','grass'],
-      ['grass','sand','sand','grass','grass']
-    ],
-    start: {x: 1,y: 1,direction: 'E'}, goal: {x: 3,y: 2},
-    defaults: ['forward','forward','right','forward'], unlocked: true
-  },
-  {
-    id: 'rivieroever', revision: 1, number: 2, title: 'De overstroomde oever',
-    subtitle: 'Water in zicht', story: 'De rivier heeft het pad versperd. Zoek via de droge stenen een route naar de zendruïne.',
-    objective: 'Bereik het doel zonder het water in te rijden.', hint: 'Rijd eerst naar het veilige pad boven de rivier.',
-    tiles: [
-      ['grass','grass','grass','grass','grass'],
-      ['stone','stone','stone','stone','grass'],
-      ['grass','grass','water','water','grass'],
-      ['grass','grass','water','grass','grass']
-    ],
-    start: {x: 0,y: 2,direction: 'E'}, goal: {x: 3,y: 1},
-    defaults: ['left','forward','right','forward','forward','forward'], unlocked: true
-  }
-];
+export const levels: Level[] = campaignLevels;
 export const levelById = (id: string) => levels.find(level => level.id === id);
+export function variantCount(level: Level): number { return 1 + (level.variants?.length ?? 0); }
+export function levelVariant(level: Level, index: number): Level {
+  if (index===0)return level;
+  const variant=level.variants?.[index-1];
+  if (!variant)throw new RangeError('Onbekende kaartvariant '+index+' voor '+level.id);
+  return {...level, tiles:variant.tiles, start:variant.start, goal:variant.goal, objects:variant.objects};
+}
+export function variantLabel(level:Level,index:number):string {
+  return index===0?'Hoofdkaart':level.variants?.[index-1]?.label ?? 'Onbekende kaart';
+}
+export function blockAllowed(level: Level, type: string): boolean {
+  if (level.allowedBlocks) return level.allowedBlocks.includes(type as BlockType);
+  // Synthetic levels in legacy interpreter tests retain the old tier behavior.
+  return ['pb_forward','pb_left','pb_right','pb_scan'].includes(type) ||
+    level.number>1 && ['pb_repeat','pb_until','pb_if','pb_if_else','pb_path_clear','pb_terrain','pb_on_goal'].includes(type);
+}
 export function initialState(level: Level): RunState {
   return { ...level.start, pc: 0, steps: 0, phase: 'ready', message: 'Klaar om te testen.' };
 }

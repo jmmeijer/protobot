@@ -1,6 +1,6 @@
 import * as Blockly from 'blockly/core';
 import * as Nl from 'blockly/msg/nl';
-import type { Level } from './game';
+import { blockAllowed, type Level } from './game';
 import { defaultWorkspace } from './program';
 
 export interface BlocklyEditorHandle {
@@ -49,6 +49,12 @@ function registerBlocks(): void {
     {type:'pb_scan',message0:'◎ scan het vak vooruit',previousStatement:null,nextStatement:null,colour:'#387e9b'},
     {type:'pb_path_clear',message0:'pad vrij vooruit?',output:'Boolean',colour:'#3b789b'},
     {type:'pb_on_goal',message0:'op doel?',output:'Boolean',colour:'#3b789b'},
+    {type:'pb_terrain_ahead',message0:'tegel vóór mij is %1 ?',
+      args0:[{type:'field_dropdown',name:'TERRAIN',options:[['gras','grass'],['steen','stone'],['aarde','dirt'],['zand','sand'],['water','water'],['lava','lava']]}],
+      output:'Boolean',colour:'#3b789b'},
+    {type:'pb_terrain_under',message0:'tegel onder mij is %1 ?',
+      args0:[{type:'field_dropdown',name:'TERRAIN',options:[['gras','grass'],['steen','stone'],['aarde','dirt'],['zand','sand'],['water','water'],['lava','lava']]}],
+      output:'Boolean',colour:'#3b789b'},
     {
       type:'pb_terrain',message0:'tegel %1 is %2 ?',
       args0:[
@@ -82,16 +88,18 @@ function registerBlocks(): void {
 }
 function toolbox(level: Level): Blockly.utils.toolbox.ToolboxDefinition {
   const block = (type:string) => ({kind:'block',type});
-  const categories: Array<{kind:'category';name:string;colour:string;contents:ReturnType<typeof block>[]}> = [
-    {kind:'category',name:'Bewegen',colour:'#198b78',contents:[block('pb_forward'),block('pb_left'),block('pb_right')]},
-    {kind:'category',name:'Scannen',colour:'#3b789b',contents:[block('pb_scan')]}
+  const defs = [
+    {name:'Bewegen',colour:'#198b78',types:['pb_forward','pb_left','pb_right']},
+    {name:'Scannen',colour:'#3b789b',types:['pb_scan']},
+    {name:'Herhalen',colour:'#ad6a38',types:['pb_repeat','pb_until']},
+    {name:'Sensoren',colour:'#3b789b',types:['pb_terrain_ahead','pb_path_clear','pb_terrain_under','pb_on_goal']},
+    {name:'Beslissingen',colour:'#8360ad',types:['pb_if','pb_if_else']}
   ];
-  if (level.number > 1) categories.push(
-    {kind:'category',name:'Sensoren',colour:'#3b789b',contents:[block('pb_path_clear'),block('pb_terrain'),block('pb_on_goal')]},
-    {kind:'category',name:'Beslissingen',colour:'#8360ad',contents:[block('pb_if'),block('pb_if_else')]},
-    {kind:'category',name:'Herhalen',colour:'#ad6a38',contents:[block('pb_repeat'),block('pb_until')]}
-  );
-  return {kind:'categoryToolbox',contents:categories};
+  const contents = defs.map(def => ({
+    kind:'category', name:def.name, colour:def.colour,
+    contents:def.types.filter(type => blockAllowed(level,type)).map(block)
+  })).filter(group => group.contents.length>0);
+  return {kind:'categoryToolbox',contents};
 }
 export function mountBlocklyEditor(
   element:HTMLElement,level:Level,initialState:unknown,onChange:(state:object,blocks:number)=>void

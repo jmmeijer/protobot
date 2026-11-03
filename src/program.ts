@@ -1,4 +1,4 @@
-import type { Block, Command, Direction, Level, RunState, Tile } from './game';
+import { blockAllowed, type Block, type Command, type Direction, type Level, type RunState, type Tile } from './game.ts';
 
 export type Condition =
   | { kind: 'path-clear' }
@@ -44,18 +44,23 @@ function id(block: Value): string {
   }
   return block.id;
 }
-function parseCondition(node: Value | null, parentId: string): Condition {
+function parseCondition(node: Value | null, parentId: string, level: Level): Condition {
   if (!node) throw new ProgramError('Plaats een sensorvoorwaarde in het lege puzzelstuk.', parentId);
   const blockId = id(node);
+  if (typeof node.type !== 'string' || !blockAllowed(level,node.type))
+    throw new ProgramError('Dit sensorblok komt pas in een latere missie beschikbaar.',blockId);
   if (node.type === 'pb_path_clear') return {kind:'path-clear'};
   if (node.type === 'pb_on_goal') return {kind:'on-goal'};
-  if (node.type === 'pb_terrain') {
+  if (node.type === 'pb_terrain' || node.type === 'pb_terrain_ahead' || node.type === 'pb_terrain_under') {
     const fields = object(node.fields);
-    const where = fields?.WHERE;
+    const where = node.type === 'pb_terrain_ahead' ? 'AHEAD'
+      : node.type === 'pb_terrain_under' ? 'UNDER' : fields?.WHERE;
     const tile = fields?.TERRAIN;
     if ((where !== 'AHEAD' && where !== 'UNDER') || typeof tile !== 'string' || !allowedTerrain.has(tile)) {
       throw new ProgramError('Kies een geldige tegel en sensorrichting.', blockId);
     }
+    if (where === 'UNDER' && level.allowedBlocks && !blockAllowed(level,'pb_terrain_under'))
+      throw new ProgramError('Terrein onder de robot wordt pas vanaf missie 8 ontgrendeld.',blockId);
     return {kind:'terrain',where,terrain:tile as Tile};
   }
   throw new ProgramError('Dit blok kan niet als sensorvoorwaarde worden gebruikt.', blockId);
@@ -103,13 +108,16 @@ export function compileWorkspace(state: unknown, level: Level): Program {
       const type = block.type;
       if (block.enabled === false) { block = next(block); continue; }
       if (typeof type !== 'string') throw new ProgramError('Onbekend bloktype.', blockId);
+      if (!(type in actions || ['pb_if','pb_if_else','pb_repeat','pb_until'].includes(type)))
+        throw new ProgramError('Niet ondersteund blok: ' + type,blockId);
+      if (!blockAllowed(level,type))
+        throw new ProgramError('Dit codeblok komt pas in een latere missie beschikbaar.',blockId);
       if (type in actions) {
         add({op:actions[type],blockId});
       } else if (type === 'pb_if' || type === 'pb_if_else') {
-        if (level.number === 1) throw new ProgramError('Voorwaarden komen pas in een latere missie beschikbaar.',blockId);
         const conditionNode = nested(block,'COND');
         if (conditionNode) attached.add(conditionNode);
-        const condition = parseCondition(conditionNode,blockId);
+        const condition = parseCondition(conditionNode,blockId,level);
         const at = instructions.length;
         add({op:'if',blockId,condition,target:-1});
         chain(nested(block,'THEN'),depth+1);
@@ -121,7 +129,6 @@ export function compileWorkspace(state: unknown, level: Level): Program {
           (instructions[skip] as Extract<Instruction,{op:'jump'}>).target = instructions.length;
         } else (instructions[at] as Extract<Instruction,{op:'if'}>).target = instructions.length;
       } else if (type === 'pb_repeat' || type === 'pb_until') {
-        if (level.number === 1) throw new ProgramError('Lussen komen pas in een latere missie beschikbaar.',blockId);
         const at = instructions.length;
         if (type === 'pb_repeat') {
           const n = Number(object(block.fields)?.COUNT);
@@ -130,7 +137,7 @@ export function compileWorkspace(state: unknown, level: Level): Program {
         } else {
           const conditionNode = nested(block,'COND');
           if (conditionNode) attached.add(conditionNode);
-          add({op:'until',blockId,condition:parseCondition(conditionNode,blockId),target:-1});
+          add({op:'until',blockId,condition:parseCondition(conditionNode,blockId,level),target:-1});
         }
         chain(nested(block,'DO'),depth+1);
         add({op:'jump',blockId,target:at});
@@ -140,9 +147,14 @@ export function compileWorkspace(state: unknown, level: Level): Program {
     }
   }
   chain(nested(start,'DO'),0);
+  const connectedBlocks = Math.max(0,attached.size - 1);
+  if (level.maxBlocks !== undefined && connectedBlocks > level.maxBlocks)
+    throw new ProgramError('Maximaal '+level.maxBlocks+' codeblokken toegestaan (exclusief startblok).');
   return {instructions,totalBlocks:Math.max(0,seen.size - 1), ignoredBlocks:Math.max(0,seen.size - attached.size)};
 }
 export function defaultWorkspace(level: Level, legacyBlocks?: readonly Block[]): object {
+  if ((!legacyBlocks || legacyBlocks.length === 0) && level.starterWorkspace)
+    return structuredClone(level.starterWorkspace);
   const blocks = legacyBlocks ?? level.defaults.map((command,i) => ({command,id:'start-'+i}));
   let sequence: Value | undefined;
   for (let i=blocks.length-1;i>=0;i--) {

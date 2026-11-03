@@ -14,22 +14,35 @@ npm run dev
 
 `npm run build` controleert TypeScript en maakt `dist/`. `npm test` test de eerste deterministische uitvoeringsstappen. De app werkt statisch op GitHub Pages met de basisroute `/protobot/`.
 
-## Schermen (eerste skeleton)
+## Schermen
 
-1. Splash/start: `#/ ` (zonder spatie: `#/`)
-2. Leveloverzicht: `#/levels`
-3. Opdracht: `#/level/radiomast`
-4. Programmeren: `#/level/radiomast/editor`
-5. Testen/spelen: `#/level/radiomast/play`
-6. Resultaat: `#/level/radiomast/result`
+- Start: `#/`
+- Missieoverzicht: `#/levels`
+- Opdracht: `#/level/radiomast`
+- Geïntegreerde Blockly-werkruimte en testen: `#/level/radiomast/workspace`
+- Resultaat: `#/level/radiomast/result`
 
-Ook `rivieroever` bestaat als tweede level. Directe hashlinks werken bij GitHub Pages zonder serverrouter.
+De oude `/editor`- en `/play`-routes blijven als verwijzing werken. Alle tien missies zijn rechtstreeks toegankelijk.
 
-De programmeeromgeving gebruikt nu **Blockly**: Nederlandstalige sleepbare blokken, een vast startblok, lokale Blockly-JSON-opslag en automatische migratie van oude instructielijsten. Missie 1 heeft bewegen en scannen; missie 2 heeft ook sensorvoorwaarden, als/anders en herhalingen. De testmodus toont de huidige en volgende instructie, met afspelen, pauzeren, stap en herstart. De interpreter voert uitsluitend eigen robotinstructies uit, geen gegenereerde JavaScript.
+De programmeeromgeving gebruikt nu **Blockly**: Nederlandstalige sleepbare blokken, een vast startblok, lokale Blockly-JSON-opslag en automatische migratie van oude instructielijsten. Blockly-blokken worden nu per missie ontgrendeld: rijden en draaien (1), scannen (3), getelde herhaling (4), als/anders en terrein vóór mij (6), pad vrij (7), herhaal totdat en terrein onder mij (8), en op doel? (10). De testmodus toont de huidige en volgende instructie, met afspelen, pauzeren, stap en herstart. De interpreter voert uitsluitend eigen robotinstructies uit, geen gegenereerde JavaScript.
 
-Voortgang en Blockly-programma worden per missie lokaal bewaard. Meerdere kaartvarianten en definitieve animaties zijn vervolgstappen.
+Voortgang en Blockly-programma worden per missie lokaal bewaard. Vanaf missie 6 zijn er meerdere kaartvarianten: hetzelfde Blockly-programma wordt op elke variant getest. De voltooiingsstatus wordt pas toegekend als alle varianten slagen.
 
 Lees [het technisch ontwerp](docs/technisch-ontwerp.md) en [het schermentraject](docs/schermen.md).
+
+## Campaign-ontwikkeling — 10 missies (november 2026)
+
+Alle missies staan in `src/levels.ts`. `src/game.ts` bevat de gedeelde leveltypen en functies `levelVariant`, `variantCount` en `blockAllowed`. Een level beschrijft de basiskaart, optionele kaartvarianten, veilige start- en doelpositie, losstaande objecten, hints, leerdoelen, toegestane Blockly-types, een eventuele bloklimiet en een missielog.
+
+De volgende missies zijn speelbaar: De verlaten radiomast, De laatste wacht, Reparatieprotocol, De lange gang, De meetpost, De overstroomde oever, De lavagrot, De oude waterleiding, Inspectieprotocol en Het tegenstation.
+
+**Meerdere kaarten:** de Blockly-werkruimte compileert één keer. Bij succes op kaart A behoudt de uitvoeringscontroller dezelfde instructies, schakelt de Canvas-kaart om en herstart uitsluitend de robottoestand op kaart B. De speler mag het programma tussentijds niet aanpassen. Pas bij succes op de laatste kaart wordt `completed` opgeslagen. Een eerdere winst wordt bij een levelrevisie opnieuw getoetst; opgeslagen Blockly-JSON blijft bewaard.
+
+**Controle:** `src/level-validation.ts` verifieert rechthoekigheid, bekende terraintegels, veilige start/doelpunten, objectlocaties, unieke ID's en de bereikbaarheid van het doel. Daarnaast voert `tests/campaign-solutions.test.mjs` per missie een referentieprogramma op iedere variant uit. De pure Blockly-interpreter weigert geïnjecteerde, nog niet vrijgegeven blokken en overschrijdingen van de limiet.
+
+**Terrein en objecten:** gras, steen, aarde en zand zijn veilig; water en lava beëindigen een poging; muren zijn onbegaanbaar. Radioposten, sensoren, geigerteller en pomp zijn onafhankelijke kaartobjecten die boven op het terrein worden getekend. Beide typen veroorzaken geen onbedoelde wijziging van de terreinsensor.
+
+Zie [het missieontwerp](docs/leveldesign.md) voor de complete didactische reeks.
 
 ## Publiceren
 

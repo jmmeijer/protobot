@@ -32,3 +32,10 @@ Node.js 26 LTS en het npm-lockbestand leggen de bouwomgeving vast. npm ci instal
 Test de interpreter zonder browser: draai op de plaats, geneste lussen, lege lus, water/lava, muur, stap 500 en een extra instructie na de eindtegel. Vergelijk dezelfde uitvoering in stapmodus en op volle snelheid. Controleer alle kaarten met hun referentieprogramma.
 Controleer in een browser een directe levellink, verversen na bewerken, geblokkeerde opslag en twee varianten waarvan één faalt. Test in een venster van 360 px én op een echte telefoon een geneste als/anders-tak met tikbediening. Test dezelfde opdracht uitsluitend met het toetsenbord. Koppel deze controles aan A01–A14 uit het functioneel ontwerp.
 Eerste speelbare oplevering: radiomast met bewegen en draaien, daarna rivieroever met een terreinconditie op twee kaarten. Pas na deze praktijktest volgen de overige acht levels en definitieve sprites.
+
+
+## 7. Implementatie-update: volledige campagne
+
+De eerste release van tien missies gebruikt de structuur zoals beschreven in [het missieontwerp](leveldesign.md). Alle leveldata en kaartvarianten staan in `src/levels.ts`. De toegestane codeblokken worden per missie bepaald en zowel in het palet als de interpreter gecontroleerd. Een bloklimiet telt uitsluitend de verbonden blokken, zonder startblok. Visuele objecten zijn los van het terrein opgeslagen.
+
+De uitvoeringscontroller in `src/main.ts` gebruikt één compileerstap voor meerdere kaartvarianten. Hij toont het resultaat per kaart en voltooit de missie pas wanneer alle kaarten slagen. De CanvaS-renderer wisselt van kaart zonder de Blockly-werkruimte te vernietigen. De Node-tests simuleren alle referentieprogramma's voor alle kaarten en controleren metadata en migratie van opgeslagen voortgang.
