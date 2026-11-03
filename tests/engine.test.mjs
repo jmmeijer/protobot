@@ -12,13 +12,14 @@ test('radiomast example reaches the goal', () => {
   assert.equal(execute(levels[0], levels[0].defaults).phase, 'won');
 });
 test('river example reaches the goal without entering water', () => {
-  assert.equal(execute(levels[1], levels[1].defaults).phase, 'won');
+  const river=levels.find(l=>l.id==='rivieroever');
+  assert.equal(execute(river, ['forward','forward']).phase, 'won');
 });
 test('an incomplete program fails cleanly', () => {
   assert.equal(execute(levels[0], ['forward']).phase, 'failed');
 });
 test('the first dangerous step stops the robot', () => {
-  const level = levels[1];
+  const level = levels.find(l=>l.id==='rivieroever').variants[0];
   const state = execute(level, ['forward','forward']);
   assert.equal(state.phase, 'failed');
   assert.match(state.message, /water/);
