@@ -122,6 +122,10 @@ function reportEditor(message:string,isError=false) {
   status.classList.toggle('is-warning',!isError && message.startsWith('Let op'));
 }
 function prepareRun(level:Level): boolean {
+  if (!editor && currentRoute.screen === 'editor') {
+    reportEditor('Blockly wordt nog geladen. Probeer het opnieuw zodra het palet zichtbaar is.',true);
+    return false;
+  }
   try {
     const workspace=editor?.save() ?? record(level).workspace ?? defaultWorkspace(level,record(level).blocks);
     const program=compileWorkspace(workspace,level);
@@ -254,7 +258,10 @@ function mountEditorScreen(level:Level) {
       }
     );
     const count=root.querySelector<HTMLElement>('#blockly-block-count');
-    if (count && record(level).workspace) count.textContent='Blockly-programma geladen';
+    if (count) {
+      try { count.textContent=compileWorkspace(editor.save(),level).totalBlocks+' BLOKKEN IN WERKRUIMTE'; }
+      catch { count.textContent='Blockly-editor gereed'; }
+    }
     reportEditor('Je wijzigingen worden automatisch opgeslagen op dit apparaat.');
     if (activeRun?.lastBlockId) editor.highlight(activeRun.lastBlockId);
   }).catch(() => {
@@ -263,6 +270,7 @@ function mountEditorScreen(level:Level) {
 }
 function codeRail(_level: Level, run: ProgramRunState): string {
   const program=activeProgram;
+  const last=program?.instructions.find(inst=>inst.blockId===run.lastBlockId && inst.op!=='jump');
   const current=program ? visibleInstruction(program,run.pc) : null;
   let next=null;
   if (program && current && run.phase!=='won' && run.phase!=='failed') {
@@ -280,7 +288,7 @@ function codeRail(_level: Level, run: ProgramRunState): string {
     ' UITVOERING</span><span>INGEKLAPT</span></div>'+
     '<div class="rail-summary"><span class="mini-light"></span>UITGEVOERD <b>'+run.steps+' STAPPEN</b></div>'+
     '<div class="rail-list">'+preview+'</div>'+
-    (run.lastBlockId?'<div class="rail-note">Laatste Blockly-blok: '+escapeText(run.lastBlockId)+
+    (run.lastBlockId?'<div class="rail-note">Laatst uitgevoerd: '+escapeText(describeInstruction(last))+
       (run.lastSensor?' · Sensor: '+escapeText(run.lastSensor):'')+'</div>':
       '<div class="rail-note">De huidige en volgende instructie blijven zichtbaar terwijl ProtoBot beweegt.</div>')+
     '</aside>';
@@ -307,7 +315,9 @@ function playScreen(level: Level): string {
     '<div><span>STAPPEN</span><strong>' + run.steps + '</strong></div>' +
     '<div><span>STATUS</span><strong class="' + (isRunning ? 'is-running' : '') + '">' +
     (isRunning ? 'ACTIEF' : run.phase === 'ready' ? 'GEREED' : run.phase === 'paused' ? 'PAUZE' : 'VOLTOOID') +
-    '</strong></div></div><p class="run-message" role="status">' + escapeText(run.message) + '</p></section></div></main>';
+    '</strong></div></div><p class="run-message" role="status">' + escapeText(run.message) + '</p>' +
+    (activeProgram?.ignoredBlocks ? '<p class="run-message">Let op: '+activeProgram.ignoredBlocks+' losse blokken zijn niet met het startblok verbonden en worden niet uitgevoerd.</p>' : '')+
+    '</section></div></main>';
 }
 function resultScreen(level: Level): string {
   const run = activeRun;
