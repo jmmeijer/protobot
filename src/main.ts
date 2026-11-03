@@ -1,8 +1,11 @@
 import './styles.css';
+import './blockly-editor.css';
+import type { BlocklyEditorHandle } from './blockly-editor';
+import { compileWorkspace, defaultWorkspace, describeInstruction, executeProgramStep, initialProgramState, visibleInstruction, ProgramError, type Program, type ProgramRunState } from './program';
 import { mapPrototypeMarkup, mountMapPrototype, unmountMapPrototype } from './map-prototype';
 import {
-  commands, executeStep, initialState, levelById, levels,
-  type Block, type Command, type Level, type RunState
+  initialState, levelById, levels,
+  type Level, type RunState
 } from './game';
 import { loadLevel, saveLevel, storageWarning } from './storage';
 
@@ -15,11 +18,13 @@ const root: HTMLElement = app;
 const logoSrc = import.meta.env.BASE_URL + 'assets/protobot-logo.webp';
 let booting = !window.location.hash || window.location.hash === '#/';
 let currentRoute: Route = {screen: 'start'};
-let activeRun: RunState | null = null;
+let activeRun: ProgramRunState | null = null;
+let activeProgram: Program | null = null;
+let editor: BlocklyEditorHandle | null = null;
+let editorLoadToken = 0;
 let activeLevelId = '';
 let timer: ReturnType<typeof setInterval> | undefined;
 let resultTimer: ReturnType<typeof setTimeout> | undefined;
-let nextId = 0;
 const progress = new Map(levels.map(level => [level.id, loadLevel(level)]));
 
 function escapeText(s: unknown): string {
@@ -68,13 +73,35 @@ function stopTimers() {
   if (resultTimer !== undefined) clearTimeout(resultTimer);
   timer = undefined; resultTimer = undefined;
 }
+function closeEditor() {
+  ++editorLoadToken;
+  if (!editor) return;
+  const level = currentRoute.level;
+  if (level && currentRoute.screen === 'editor') {
+    const saved = {...record(level),workspace:editor.save()};
+    progress.set(level.id,saved);
+    saveLevel(level,saved);
+  }
+  editor.dispose();
+  editor = null;
+}
 function onRouteChange() {
+  closeEditor();
   unmountMapPrototype();
   stopTimers();
   currentRoute = readRoute();
   if (currentRoute.level && (currentRoute.level.id !== activeLevelId || currentRoute.screen === 'play')) {
-    activeRun = initialState(currentRoute.level);
+    activeRun = initialProgramState(currentRoute.level);
     activeLevelId = currentRoute.level.id;
+  }
+  if (currentRoute.screen === 'play' && currentRoute.level) {
+    const level=currentRoute.level;
+    try {
+      activeProgram = compileWorkspace(record(level).workspace ?? defaultWorkspace(level,record(level).blocks),level);
+    } catch(error) {
+      activeProgram = null;
+      activeRun = {...initialProgramState(level),phase:'failed',message:error instanceof Error ? error.message : 'Ongeldig programma.'};
+    }
   }
   render();
 }
@@ -87,11 +114,32 @@ function record(level: Level) {
   if (!value) throw new Error('Level progress not found');
   return value;
 }
-function updateProgram(level: Level, blocks: Block[]) {
-  const saved = {...record(level), blocks};
-  progress.set(level.id, saved);
-  saveLevel(level, saved);
-  render();
+function reportEditor(message:string,isError=false) {
+  const status=root.querySelector<HTMLElement>('#blockly-editor-status');
+  if (!status) return;
+  status.textContent=message;
+  status.classList.toggle('is-error',isError);
+  status.classList.toggle('is-warning',!isError && message.startsWith('Let op'));
+}
+function prepareRun(level:Level): boolean {
+  try {
+    const workspace=editor?.save() ?? record(level).workspace ?? defaultWorkspace(level,record(level).blocks);
+    const program=compileWorkspace(workspace,level);
+    const saved={...record(level),workspace};
+    progress.set(level.id,saved);
+    saveLevel(level,saved);
+    activeProgram=program;
+    if (program.ignoredBlocks) {
+      reportEditor('Let op: '+program.ignoredBlocks+' losse blok(ken) worden niet uitgevoerd. Alleen de keten onder het startblok telt.');
+    }
+    navigate(routeFor(level,'play'));
+    return true;
+  } catch (error) {
+    const message=error instanceof Error ? error.message : 'De blokken kunnen niet worden uitgevoerd.';
+    reportEditor(message,true);
+    if (error instanceof ProgramError) editor?.highlight(error.blockId);
+    return false;
+  }
 }
 function setCompleted(level: Level) {
   const saved = {...record(level), completed: true};
@@ -173,54 +221,72 @@ function briefingScreen(level: Level): string {
     '<div class="map-legend"><span><i class="dot bot-dot"></i> START</span><span><i class="dot goal-dot"></i> DOEL</span>' +
     '<span><i class="dot hazard-dot"></i> GEVAAR</span></div></aside></div></main>';
 }
-function renderBlocks(level: Level): string {
-  const blocks = record(level).blocks;
-  if (!blocks.length) return '<div class="empty-program">Nog geen instructies. Kies links een blok om te beginnen.</div>';
-  return blocks.map((block,i) =>
-    '<div class="program-line"><span class="line-no">' + String(i+1).padStart(2,'0') + '</span>' +
-    '<div class="code-block kind-' + block.command + '"><span class="block-glyph">' + commands[block.command].symbol + '</span><span>' +
-    commands[block.command].label + '</span></div>' +
-    '<div class="block-actions">' + button('move-up','Verplaats blok omhoog','up','tiny',block.id) +
-    button('move-down','Verplaats blok omlaag','down','tiny',block.id) +
-    button('remove-block','Verwijder blok','trash','tiny',block.id) + '</div></div>'
-  ).join('');
-}
 function editorScreen(level: Level): string {
   return '<main class="workbench screen-enter">' + crumb(level,'PROGRAMMEREN') +
     '<div class="workspace-heading"><div><div class="eyebrow">PROGRAMMEERTERMINAL / MISSIE ' + String(level.number).padStart(2,'0') +
     '</div><h1>Bouw je route<span class="accent">.</span></h1></div>' +
-    '<div class="workspace-controls">' + button('reset-program','Herstel voorbeeldprogramma','reset') +
+    '<div class="workspace-controls">' + button('reset-program','Herstel het voorbeeldprogramma','reset') +
     '<button class="btn primary" data-action="to-play">TEST PROGRAMMA ' + icon('play') + '</button></div></div>' +
-    '<div class="editor-layout"><aside class="panel palette"><div class="panel-top"><span>INSTRUCTIES</span><span>04 BESCHIKBAAR</span></div>' +
-    '<p>Voeg een blok toe aan je programma.</p>' +
-    (Object.keys(commands) as Command[]).map(command =>
-      '<button class="palette-block kind-' + command + '" data-action="add-block" data-value="' + command + '">' +
-      '<span class="palette-glyph">' + commands[command].symbol + '</span><span><b>' + commands[command].label +
-      '</b><small>' + commands[command].hint + '</small></span><span class="add-mark">+</span></button>'
-    ).join('') + '<div class="palette-note">' + icon('info') + '<span>Dit is de eerste schermversie. De Blockly-sleepeditor volgt in de volgende bouwfase.</span></div></aside>' +
-    '<section class="panel code-panel"><div class="panel-top"><span>MIJN PROGRAMMA</span><span>' + record(level).blocks.length + ' BLOKKEN</span></div>' +
-    '<div class="code-intro"><span class="start-dot"></span> WANNEER MISSIE START</div><div class="program-list">' + renderBlocks(level) +
-    '</div><div class="end-line">EINDE PROGRAMMA</div></section>' +
-    '<aside class="panel editor-map"><div class="panel-top"><span>SPEELVELD / PREVIEW</span><span>LIVE</span></div>' + map(level) +
-    '<p class="side-caption">Bij testen schuift deze werkruimte dicht en zie je alleen de huidige en de volgende instructie.</p>' +
+    '<div class="blockly-editor-layout"><section class="panel blockly-workspace-panel"><div class="panel-top"><span>' +
+    icon('code') + ' BLOCKLY / MIJN PROGRAMMA</span><span>DRAG & DROP</span></div>' +
+    '<div id="blockly-workspace" class="blockly-workspace" aria-label="Blockly-programmeerwerkruimte"></div>' +
+    '<div class="blockly-editor-info"><span id="blockly-block-count">Blokken laden…</span>' +
+    '<span class="blockly-workspace-note">Sleep blokken uit het palet naar het startblok. Gebruik de prullenbak om ze te verwijderen.</span></div>' +
+    '<p id="blockly-editor-status" class="blockly-editor-status" role="status" aria-live="polite">Blokken laden…</p></section>' +
+    '<aside class="panel blockly-editor-map"><div class="panel-top"><span>SPEELVELD / PREVIEW</span><span>LIVE</span></div>' +
+    map(level) + '<p class="side-caption">Tijdens het testen klapt de editor in. De actieve en volgende instructie blijven zichtbaar.</p>' +
     '</aside></div></main>';
 }
-function codeRail(level: Level, run: RunState): string {
-  const blocks = record(level).blocks;
-  const preview = [run.pc,run.pc+1].map((i, offset) => {
-    const block = blocks[i];
-    return '<div class="rail-step ' + (offset === 0 ? 'current' : 'upcoming') + '">' +
-      '<span class="rail-tag">' + (offset === 0 ? 'NU' : 'VOLGENDE') + '</span>' +
-      (block ? '<span class="rail-block kind-' + block.command + '"><b>' + commands[block.command].symbol +
-      '</b><span>' + commands[block.command].label + '</span></span>' : '<span class="rail-empty">Einde programma</span>') +
-      '</div>';
+function mountEditorScreen(level:Level) {
+  const element=root.querySelector<HTMLElement>('#blockly-workspace');
+  if (!element) return;
+  const token=++editorLoadToken;
+  void import('./blockly-editor').then(({mountBlocklyEditor}) => {
+    if (token!==editorLoadToken || currentRoute.screen!=='editor' || currentRoute.level?.id!==level.id) return;
+    editor=mountBlocklyEditor(
+      element,level,record(level).workspace ?? defaultWorkspace(level,record(level).blocks),
+      (workspace,count) => {
+        const saved={...record(level),workspace};
+        progress.set(level.id,saved);
+        saveLevel(level,saved);
+        const label=root.querySelector<HTMLElement>('#blockly-block-count');
+        if (label) label.textContent=count+' BLOKKEN IN WERKRUIMTE';
+      }
+    );
+    const count=root.querySelector<HTMLElement>('#blockly-block-count');
+    if (count && record(level).workspace) count.textContent='Blockly-programma geladen';
+    reportEditor('Je wijzigingen worden automatisch opgeslagen op dit apparaat.');
+    if (activeRun?.lastBlockId) editor.highlight(activeRun.lastBlockId);
+  }).catch(() => {
+    if (token===editorLoadToken) reportEditor('Blockly kon niet worden geladen. Vernieuw de pagina.',true);
+  });
+}
+function codeRail(_level: Level, run: ProgramRunState): string {
+  const program=activeProgram;
+  const current=program ? visibleInstruction(program,run.pc) : null;
+  let next=null;
+  if (program && current && run.phase!=='won' && run.phase!=='failed') {
+    const projected=executeProgramStep(currentRoute.level!,program,run);
+    if (projected.phase!=='won' && projected.phase!=='failed') next=visibleInstruction(program,projected.pc);
+  }
+  const preview=[current?.instruction,next?.instruction].map((instruction,offset)=>{
+    const label=offset===0?'NU':'VOLGENDE';
+    const text=describeInstruction(instruction);
+    return '<div class="rail-step '+(offset===0?'current':'upcoming')+'"><span class="rail-tag">'+label+'</span>'+
+      (instruction ? '<span class="rail-block kind-'+instruction.op+'"><span>'+escapeText(text)+'</span></span>' :
+      '<span class="rail-empty">Einde programma</span>')+'</div>';
   }).join('');
-  return '<aside class="panel code-rail"><div class="panel-top"><span>' + icon('code') + ' UITVOERING</span><span>INGEKLAPT</span></div>' +
-    '<div class="rail-summary"><span class="mini-light"></span>PROGRAMMA ACTIEF <b>' + run.pc + ' / ' + blocks.length + '</b></div>' +
-    '<div class="rail-list">' + preview + '</div><div class="rail-note">De actieve instructie blijft zichtbaar terwijl ProtoBot beweegt.</div></aside>';
+  return '<aside class="panel code-rail"><div class="panel-top"><span>'+icon('code')+
+    ' UITVOERING</span><span>INGEKLAPT</span></div>'+
+    '<div class="rail-summary"><span class="mini-light"></span>UITGEVOERD <b>'+run.steps+' STAPPEN</b></div>'+
+    '<div class="rail-list">'+preview+'</div>'+
+    (run.lastBlockId?'<div class="rail-note">Laatste Blockly-blok: '+escapeText(run.lastBlockId)+
+      (run.lastSensor?' · Sensor: '+escapeText(run.lastSensor):'')+'</div>':
+      '<div class="rail-note">De huidige en volgende instructie blijven zichtbaar terwijl ProtoBot beweegt.</div>')+
+    '</aside>';
 }
 function playScreen(level: Level): string {
-  if (!activeRun) activeRun = initialState(level);
+  if (!activeRun) activeRun = initialProgramState(level);
   const run = activeRun;
   const isRunning = run.phase === 'running';
   return '<main class="workbench play-workbench screen-enter">' + crumb(level,'TESTEN') +
@@ -252,7 +318,7 @@ function resultScreen(level: Level): string {
     '<h1>' + (won ? 'Missie geslaagd!' : 'Nog niet gelukt.') + '</h1>' +
     '<p>' + escapeText(run?.message ?? 'Voer eerst een test uit om je resultaat te zien.') + '</p>' +
     '<div class="result-stats"><div><strong>' + (run?.steps ?? 0) + '</strong><span>UITGEVOERDE STAPPEN</span></div>' +
-    '<div><strong>' + record(level).blocks.length + '</strong><span>CODEBLOKKEN</span></div></div>' +
+    '<div><strong>' + (activeProgram?.totalBlocks ?? 0) + '</strong><span>CODEBLOKKEN</span></div></div>' +
     '<div class="result-actions"><button class="btn primary" data-action="to-editor">' +
     (won ? 'PROGRAMMA BEKIJKEN' : 'PROBEER OPNIEUW') + ' ' + icon('code') + '</button>' +
     '<button class="btn secondary" data-action="to-levels">MISSIEOVERZICHT ' + icon('map') + '</button></div></section></main>';
@@ -275,11 +341,12 @@ function render() {
   }
   root.innerHTML = header() + (storageWarning() ? '<div class="storage-warning" role="alert">' + escapeText(storageWarning()) + '</div>' : '') + body + footer();
   if (route.screen === 'map') mountMapPrototype();
+  if (route.screen === 'editor' && route.level) mountEditorScreen(route.level);
 }
 function tick() {
   const level = currentRoute.level;
-  if (!level || !activeRun) return;
-  activeRun = executeStep(level, record(level).blocks, activeRun);
+  if (!level || !activeRun || !activeProgram) return;
+  activeRun = executeProgramStep(level,activeProgram,activeRun);
   if (activeRun.phase === 'won' || activeRun.phase === 'failed') {
     stopTimers();
     if (activeRun.phase === 'won') setCompleted(level);
@@ -291,7 +358,7 @@ function tick() {
   render();
 }
 function play() {
-  if (!currentRoute.level || !activeRun || timer !== undefined || ['won','failed'].includes(activeRun.phase)) return;
+  if (!currentRoute.level || !activeRun || !activeProgram || timer !== undefined || ['won','failed'].includes(activeRun.phase)) return;
   activeRun.phase = 'running';
   render();
   timer = setInterval(tick, 680);
@@ -307,22 +374,11 @@ root.addEventListener('click', event => {
   if (action === 'to-levels') navigate('#/levels');
   if (action === 'open-level' && levelById(value)) navigate(routeFor(levelById(value)!, 'briefing'));
   if (action === 'to-editor' && level) navigate(routeFor(level,'editor'));
-  if (action === 'to-play' && level) navigate(routeFor(level,'play'));
+  if (action === 'to-play' && level) prepareRun(level);
   if (action === 'back-to-editor' && level) navigate(routeFor(level,'editor'));
-  if (action === 'add-block' && level && value in commands) {
-    updateProgram(level, [...record(level).blocks, {id: 'block-' + (++nextId) + '-' + Date.now(), command: value as Command}]);
-  }
-  if (level && ['remove-block','move-up','move-down'].includes(action ?? '')) {
-    const blocks = [...record(level).blocks];
-    const index = blocks.findIndex(block => block.id === value);
-    if (index < 0) return;
-    if (action === 'remove-block') blocks.splice(index,1);
-    if (action === 'move-up' && index > 0) [blocks[index-1],blocks[index]] = [blocks[index],blocks[index-1]];
-    if (action === 'move-down' && index < blocks.length-1) [blocks[index],blocks[index+1]] = [blocks[index+1],blocks[index]];
-    updateProgram(level,blocks);
-  }
-  if (action === 'reset-program' && level) {
-    updateProgram(level, level.defaults.map((command,i) => ({id:'default-'+Date.now()+'-'+i,command})));
+  if (action === 'reset-program' && level && editor) {
+    editor.reset();
+    reportEditor('Voorbeeldprogramma hersteld.');
   }
   if (action === 'run') play();
   if (action === 'pause' && activeRun && timer !== undefined) {
@@ -333,14 +389,18 @@ root.addEventListener('click', event => {
     tick();
   }
   if (action === 'restart' && level) {
-    stopTimers(); activeRun = initialState(level); render();
+    stopTimers(); activeRun = initialProgramState(level); render();
   }
 });
 window.addEventListener('hashchange', onRouteChange);
 currentRoute = readRoute();
 if (currentRoute.level) {
   activeLevelId = currentRoute.level.id;
-  activeRun = initialState(currentRoute.level);
+  activeRun = initialProgramState(currentRoute.level);
+  if (currentRoute.screen === 'play') {
+    try { activeProgram=compileWorkspace(record(currentRoute.level).workspace ?? defaultWorkspace(currentRoute.level,record(currentRoute.level).blocks),currentRoute.level); }
+    catch(error) { activeProgram=null;activeRun.phase='failed';activeRun.message=error instanceof Error?error.message:'Ongeldig programma.'; }
+  }
 }
 render();
 if (booting) setTimeout(() => { booting = false; onRouteChange(); }, 600);

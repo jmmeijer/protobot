@@ -25,9 +25,9 @@ npm run dev
 
 Ook `rivieroever` bestaat als tweede level. Directe hashlinks werken bij GitHub Pages zonder serverrouter.
 
-De programma-editor biedt nu **klikbare voorbeeldblokken** (toevoegen, volgorde wijzigen, verwijderen) en is bewust nog geen Blockly-workspace. De uitvoermodus laat de **huidige en volgende stap** zien, met pictogrammen voor afspelen, pauzeren, één stap en herstarten. Een kleine, veilige TypeScript-interpreter verwerkt de vier eerste instructies. Er wordt geen gegenereerde JavaScript geëvalueerd.
+De programmeeromgeving gebruikt nu **Blockly**: Nederlandstalige sleepbare blokken, een vast startblok, lokale Blockly-JSON-opslag en automatische migratie van oude instructielijsten. Missie 1 heeft bewegen en scannen; missie 2 heeft ook sensorvoorwaarden, als/anders en herhalingen. De testmodus toont de huidige en volgende instructie, met afspelen, pauzeren, stap en herstart. De interpreter voert uitsluitend eigen robotinstructies uit, geen gegenereerde JavaScript.
 
-Voortgang en programma worden per missie lokaal bewaard. De code om Blockly te integreren, condities en lussen te implementeren, kaartenvarianten uit te voeren en definitieve illustraties toe te voegen is een vervolgstap.
+Voortgang en Blockly-programma worden per missie lokaal bewaard. Meerdere kaartvarianten en definitieve animaties zijn vervolgstappen.
 
 Lees [het technisch ontwerp](docs/technisch-ontwerp.md) en [het schermentraject](docs/schermen.md).
 
@@ -48,3 +48,5 @@ Open de app en kies op het missieoverzicht **KAARTLAB: TEST TERREINEN**, of ga r
 De atlas is geoptimaliseerde **lossless WebP** (palet beperkt voor pixelart). De originele gegenereerde illustraties blijven buiten de bundle; definitieve handgetekende maskers, extra terreindecoraties en robuuste keyboardbewerking volgen later.
 
 Meer technische details: [autotiling en overgangsmaskers](docs/autotiling.md).
+
+Meer details over de editor: [Blockly-integratie](docs/blockly.md).
