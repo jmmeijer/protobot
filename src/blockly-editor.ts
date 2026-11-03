@@ -14,6 +14,7 @@ export interface BlocklyEditorHandle {
   dispose(): void;
 }
 const protobotTheme = Blockly.Theme.defineTheme('ProtoBot', {
+  name: 'ProtoBot',
   base: Blockly.Themes.Zelos,
   componentStyles: {
     workspaceBackgroundColour: '#122125',
