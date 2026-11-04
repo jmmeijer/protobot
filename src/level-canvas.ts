@@ -3,13 +3,15 @@ import { initialState, levelById, type Level, type MissionObject, type RunState 
 import { createTerrainPainter, levelTerrain } from './terrain-canvas';
 import type { TerrainMap, TerrainName } from './terrain-model';
 import { poseAt, restingPose, type RobotPose } from './robot-motion';
+import { WALL_ATLAS_CELLS, wallSpriteForTile, type WallSprite } from './wall-topology.ts';
 
 const STATIC_TILE_SIZE = 128;
 const ATLAS_URL = new URL('./assets/terrain-atlas.webp', import.meta.url).href;
 const ROBOT_URL = new URL('./assets/protobot-topdown.webp', import.meta.url).href;
 const PROPS_URL = new URL('./assets/mission-props.webp', import.meta.url).href;
 const WALLS_URL = new URL('./assets/wall-materials.webp', import.meta.url).href;
-type Assets = { atlas: HTMLImageElement | null; robot: HTMLImageElement | null; props: HTMLImageElement | null; walls: HTMLImageElement | null };
+const WALL_STRUCTURE_URL = new URL('./assets/wall-structure.webp', import.meta.url).href;
+type Assets = { atlas: HTMLImageElement | null; robot: HTMLImageElement | null; props: HTMLImageElement | null; walls: HTMLImageElement | null; structure: HTMLImageElement | null };
 let assetsPromise: Promise<Assets> | undefined;
 let cleanup: (() => void) | undefined;
 
@@ -46,8 +48,10 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
 }
 function loadAssets(): Promise<Assets> {
   return assetsPromise ??= Promise.all([
-    loadImage(ATLAS_URL), loadImage(ROBOT_URL), loadImage(PROPS_URL), loadImage(WALLS_URL)
-  ]).then(([atlas, robot, props, walls]) => ({ atlas, robot, props, walls }));
+    loadImage(ATLAS_URL), loadImage(ROBOT_URL), loadImage(PROPS_URL),
+    loadImage(WALLS_URL), loadImage(WALL_STRUCTURE_URL)
+  ]).then(([atlas, robot, props, walls, structure]) =>
+    ({ atlas, robot, props, walls, structure }));
 }
 
 const fallbackColors: Record<TerrainName, string> = {
@@ -86,7 +90,7 @@ function drawSurveyGrid(context: CanvasRenderingContext2D, columns: number, rows
   context.restore();
 }
 
-function drawWall(context: CanvasRenderingContext2D, level: Level, x: number, y: number,
+export function drawWall(context: CanvasRenderingContext2D, level: Level, x: number, y: number,
   size: number, material?: HTMLImageElement | null) {
   const left = x * size;
   const top = y * size;
@@ -112,7 +116,22 @@ function drawWall(context: CanvasRenderingContext2D, level: Level, x: number, y:
   if (open(x, y + 1)) context.fillRect(left, top + size - 2 * rim, size, 2 * rim);
   if (open(x + 1, y)) context.fillRect(left + size - rim, top, rim, size);
 }
-function drawGoal(context: CanvasRenderingContext2D, level: Level, size: number) {
+/** Six transparent structural sprites; orientation is entirely data-driven. */
+export function drawWallStructure(
+  context: CanvasRenderingContext2D, image: HTMLImageElement | null | undefined,
+  sprite: WallSprite, x: number, y: number, size: number
+) {
+  if (!image) return;
+  const [col,row] = WALL_ATLAS_CELLS[sprite.piece];
+  context.save();
+  context.translate((x + .5) * size, (y + .5) * size);
+  context.rotate(sprite.rotation * Math.PI / 2);
+  context.imageSmoothingEnabled = false;
+  context.drawImage(image,col * 256,row * 256,256,256,
+    -size / 2,-size / 2,size,size);
+  context.restore();
+}
+export function drawGoal(context: CanvasRenderingContext2D, level: Level, size: number) {
   const cx = (level.goal.x + .5) * size;
   const cy = (level.goal.y + .5) * size;
   context.save();
@@ -289,10 +308,19 @@ export function mountLevelCanvases(
       for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
         if (level.tiles[y][x] !== 'wall') continue;
         drawWall(backgroundContext, level, x, y, STATIC_TILE_SIZE, loaded?.walls);
-        if (level.id === 'lange-gang' && loaded?.props) {
-          const wallVariant = (x + 3 * y) % 4;
-          drawProp(backgroundContext, loaded.props, wallVariant, 0, x * STATIC_TILE_SIZE, y * STATIC_TILE_SIZE, STATIC_TILE_SIZE);
+        // Rock cave walls keep their natural material; industrial walls get
+        // a topology-selected structure. Do not stamp arbitrary prop variants.
+        if (level.id !== 'meetpost' && level.id !== 'lavagrot') {
+          const part = wallSpriteForTile(level.tiles, x, y);
+          if (part) drawWallStructure(backgroundContext,loaded?.structure,
+            part,x,y,STATIC_TILE_SIZE);
         }
+      }
+      // A doorway is placed on a *passable* tile; its frame is purely visual.
+      for (const feature of level.wallFeatures ?? []) {
+        drawWallStructure(backgroundContext,loaded?.structure,
+          {piece:feature.type,rotation:feature.rotation},
+          feature.x,feature.y,STATIC_TILE_SIZE);
       }
       drawGoal(backgroundContext, level, STATIC_TILE_SIZE);
       drawMissionObjects(backgroundContext, level, STATIC_TILE_SIZE, loaded?.props ?? null);

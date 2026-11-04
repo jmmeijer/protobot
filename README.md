@@ -44,6 +44,21 @@ De volgende missies zijn speelbaar: De verlaten radiomast, De laatste wacht, Rep
 
 Zie [het missieontwerp](docs/leveldesign.md) voor de complete didactische reeks.
 
+## Testbare muur-renderer
+
+Technische muurcellen gebruiken een nieuwe structurele spritesheet met zes delen:
+recht, binnenhoek, buitenhoek, eindstuk, deurkader en beschadigde opening.
+De renderer kiest delen op basis van vier aangrenzende muurtegels en draait
+dezelfde bronafbeelding naar de juiste richting. Rotatie is onafhankelijk van
+de collision-kaart; een deuropening is alleen begaanbaar wanneer de bijbehorende
+vloertegel dat ook is.
+
+Missie 4 (de lange gang) heeft nu links een echte doorgang en automatisch gekozen
+eindstukken en hoeken, zonder gerandomiseerde ingebakken radiator- en paneeloverlays.
+Bekijk alle onderdelen, vier rotaties en de samengestelde gang op
+[`#/wall-lab`](https://jmmeijer.github.io/protobot/#/wall-lab).
+Zie ook [de muurdocumentatie](docs/wall-system.md).
+
 ## Publiceren
 
 De workflow bouwt en test iedere pull request gericht op `main`. **Elke push naar `main` (waaronder een merge) publiceert na geslaagde build en tests automatisch de inhoud van `dist/` naar GitHub Pages.** Handmatig starten via `workflow_dispatch` op `main` blijft ook mogelijk. Stel onder Settings → Pages de bron in op **GitHub Actions**; er hoeft geen map te worden geselecteerd.

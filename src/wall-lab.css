@@ -1,0 +1,16 @@
+.wall-lab{display:grid;gap:22px}
+.wall-lab-panel{overflow:hidden;min-width:0}
+.wall-lab-turns{display:flex;flex-wrap:wrap;gap:8px;padding:16px}
+.wall-lab-turns .btn{padding:9px 18px}
+.wall-lab-turns [aria-pressed="true"]{background:#137d76;color:#effff9;border-color:#80f7df}
+.wall-lab-gallery{padding:16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.wall-lab-piece{margin:0;display:grid;justify-items:center;gap:8px;min-width:0}
+.wall-lab-piece canvas{display:block;width:min(100%,168px);aspect-ratio:1;background:#1c3236;image-rendering:pixelated;border:1px solid #406267;border-radius:4px}
+.wall-lab-piece figcaption{font-size:12px;color:#cae1dd;text-align:center}
+.wall-lab-map-wrap{margin:0 16px;border:1px solid #426466;background:#1d3637;overflow:hidden}
+.wall-lab-map-wrap canvas{display:block;width:100%;height:auto;image-rendering:pixelated}
+.wall-lab-description{padding:12px 20px;color:#bed5d2;line-height:1.55;font-size:13px}
+.wall-lab-message{padding:12px 20px;font-size:12px;color:#9ee8d8}
+@media(max-width:600px){.wall-lab-gallery{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:10px}.wall-lab-description{padding:12px}}
+
+.lab-links{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:23px}
