@@ -7,7 +7,8 @@ import { poseAt, restingPose, type RobotPose } from './robot-motion';
 const STATIC_TILE_SIZE = 128;
 const ATLAS_URL = new URL('./assets/terrain-atlas.webp', import.meta.url).href;
 const ROBOT_URL = new URL('./assets/protobot-topdown.webp', import.meta.url).href;
-type Assets = { atlas: HTMLImageElement | null; robot: HTMLImageElement | null };
+const PROPS_URL = new URL('./assets/mission-props.webp', import.meta.url).href;
+type Assets = { atlas: HTMLImageElement | null; robot: HTMLImageElement | null; props: HTMLImageElement | null };
 let assetsPromise: Promise<Assets> | undefined;
 let cleanup: (() => void) | undefined;
 
@@ -44,8 +45,8 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
 }
 function loadAssets(): Promise<Assets> {
   return assetsPromise ??= Promise.all([
-    loadImage(ATLAS_URL), loadImage(ROBOT_URL)
-  ]).then(([atlas, robot]) => ({ atlas, robot }));
+    loadImage(ATLAS_URL), loadImage(ROBOT_URL), loadImage(PROPS_URL)
+  ]).then(([atlas, robot, props]) => ({ atlas, robot, props }));
 }
 
 const fallbackColors: Record<TerrainName, string> = {
@@ -118,12 +119,27 @@ function drawGoal(context: CanvasRenderingContext2D, level: Level, size: number)
   context.stroke();
   context.restore();
 }
+// The 4 × 2 atlas uses 128px cells: walls above, mission objects below.
+function drawProp(context: CanvasRenderingContext2D, image: HTMLImageElement, col: number, row: number,
+  x: number, y: number, size: number) {
+  context.drawImage(image, col * 128, row * 128, 128, 128, x, y, size, size);
+}
+
 /** Mark mission objects on a separate logical layer, independent of terrain. */
-function drawMissionObjects(context:CanvasRenderingContext2D,objects:readonly MissionObject[],size:number){
+function drawMissionObjects(context:CanvasRenderingContext2D,level:Level,size:number,props:HTMLImageElement | null){
   const letters:Record<MissionObject['type'],string>={
     radio:'R',geiger:'G',relay:'E',beacon:'B',sensor:'S',pump:'P'
   };
-  for(const object of objects){
+  const spriteColumns: Partial<Record<MissionObject['type'], number>> = {
+    geiger: 0, pump: 1, radio: level.id === 'tegenstation' ? 2 : 3
+  };
+  for(const object of level.objects ?? []){
+    const column = spriteColumns[object.type];
+    if (props && column !== undefined) {
+      const inset = size * .07;
+      drawProp(context, props, column, 1, object.x * size + inset, object.y * size + inset, size - 2 * inset);
+      continue;
+    }
     const cx=(object.x+.5)*size,cy=(object.y+.5)*size;
     const side=size*.43;
     context.save();
@@ -262,10 +278,16 @@ export function mountLevelCanvases(
       if (loaded?.atlas) painter.draw(backgroundContext, loaded.atlas, terrainMap, STATIC_TILE_SIZE);
       else fallbackTerrain(backgroundContext, terrainMap, STATIC_TILE_SIZE);
       for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
-        if (level.tiles[y][x] === 'wall') drawWall(backgroundContext, x, y, STATIC_TILE_SIZE);
+        if (level.tiles[y][x] !== 'wall') continue;
+        if (level.id === 'lange-gang' && loaded?.props) {
+          const wallVariant = (x + 3 * y) % 4;
+          drawProp(backgroundContext, loaded.props, wallVariant, 0, x * STATIC_TILE_SIZE, y * STATIC_TILE_SIZE, STATIC_TILE_SIZE);
+        } else {
+          drawWall(backgroundContext, x, y, STATIC_TILE_SIZE);
+        }
       }
       drawGoal(backgroundContext, level, STATIC_TILE_SIZE);
-      drawMissionObjects(backgroundContext,level.objects??[],STATIC_TILE_SIZE);
+      drawMissionObjects(backgroundContext, level, STATIC_TILE_SIZE, loaded?.props ?? null);
       paint();
     };
 
