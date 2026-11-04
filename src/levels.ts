@@ -77,15 +77,16 @@ mission({
   successLog:'REPARATIELOG 03 — Navigatiefout hersteld. ProtoBot rapporteert normale besturing.'
 }),
 mission({
-  id:'lange-gang',revision:1,number:4,title:'De lange gang',subtitle:'Werk slimmer, niet langer',
+  id:'lange-gang',revision:2,number:4,title:'De lange gang',subtitle:'Werk slimmer, niet langer',
   story:'Een rechte onderhoudsgang voert diep onder het oude complex. Gebruik een herhaling.',
   objective:'Rijd zes vakken vooruit met maximaal twee Blockly-blokken.',
   hint:'Zet rij vooruit binnen een herhaalblok met teller 6.',
   hints:['Een opdracht kan meer dan één keer worden uitgevoerd.','Welk blok herhaalt een actie?','Herhaal 6 keer: rij vooruit.'],
   learningGoals:['Getelde herhalingen','Compact programmeren'],
   maxBlocks:2,
-  tiles:terrain('#########','#sssssss#','#########'),
+  tiles:terrain('#########','ssssssss#','#########'),
   start:robot(1,1),goal:target(7,1),defaults:[],
+  wallFeatures:[{type:'doorway',x:0,y:1,rotation:1}],
   objects:[item('beacon',7,1,'Noodbaken')],
   successLog:'ONDERHOUDSLOG 04 — De lange gang is veilig. Herhaalde opdrachten zijn geoptimaliseerd.'
 }),

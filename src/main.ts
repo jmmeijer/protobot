@@ -8,13 +8,14 @@ import type { BlocklyEditorHandle } from './blockly-editor';
 import { compileWorkspace, defaultWorkspace, executeProgramStep, initialProgramState, visibleInstruction, ProgramError, type Program, type ProgramRunState } from './program';
 import { executionFocus } from './execution-focus';
 import { mapPrototypeMarkup, mountMapPrototype, unmountMapPrototype } from './map-prototype';
+import { wallLabMarkup, mountWallLab, unmountWallLab } from './wall-lab';
 import {
   initialState, levelById, levelVariant, variantCount, variantLabel, levels,
   type Level, type RunState
 } from './game';
 import { loadLevel, saveLevel, storageWarning } from './storage';
 
-type Screen = 'start' | 'levels' | 'briefing' | 'workspace' | 'result' | 'map';
+type Screen = 'start' | 'levels' | 'briefing' | 'workspace' | 'result' | 'map' | 'wall-lab';
 type WorkspaceMode = 'edit' | 'test';
 interface Route { screen: Screen; level?: Level; initialMode?: WorkspaceMode }
 const app = document.querySelector<HTMLElement>('#app');
@@ -86,6 +87,7 @@ function readRoute(): Route {
   const parts = window.location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   if (parts[0] === 'levels') return {screen: 'levels'};
   if (parts[0] === 'map-prototype') return {screen: 'map'};
+  if (parts[0] === 'wall-lab') return {screen: 'wall-lab'};
   if (parts[0] === 'level') {
     const level = levelById(parts[1] ?? '');
     if (!level) return {screen:'levels'};
@@ -130,6 +132,7 @@ function closeEditor() {
 function onRouteChange() {
   closeEditor();
   unmountMapPrototype();
+  unmountWallLab();
   stopTimers();
   currentRoute = readRoute();
   hintIndex = 0;
@@ -288,7 +291,8 @@ function levelsScreen(): string {
       '</div></article>';
     }).join('') + '</div><div class="future-notice">' + icon('check') +
     '<div><strong>10 missies in dit hoofdstuk</strong><span>Voltooi de huidige missie om de volgende te openen.</span></div></div>' +
-    '<a class="btn secondary" href="#/map-prototype" style="margin-top:23px">KAARTLAB: TEST TERREINEN ' + icon('map') + '</a></main>';
+    '<div class="lab-links"><a class="btn secondary" href="#/map-prototype">KAARTLAB: TEST TERREINEN ' + icon('map') + '</a>' +
+    '<a class="btn secondary" href="#/wall-lab">MUURLAB: TEST MUURSPRITES ' + icon('map') + '</a></div></main>';
 }
 function crumb(level: Level, step: string): string {
   return '<nav class="breadcrumb" aria-label="Navigatie"><a href="#/levels">MISSIES</a><span>/</span><a href="' +
@@ -451,6 +455,7 @@ function render() {
   if (route.screen === 'start') body = startScreen();
   else if (route.screen === 'levels') body = levelsScreen();
   else if (route.screen === 'map') body = mapPrototypeMarkup();
+  else if (route.screen === 'wall-lab') body = wallLabMarkup();
   else if (route.level) {
     if (route.screen === 'briefing') body = briefingScreen(route.level);
     if (route.screen === 'workspace') body = workspaceScreen(route.level);
@@ -458,6 +463,7 @@ function render() {
   }
   root.innerHTML = header() + (storageWarning() ? '<div class="storage-warning" role="alert">' + escapeText(storageWarning()) + '</div>' : '') + body + footer();
   if (route.screen === 'map') mountMapPrototype();
+  if (route.screen === 'wall-lab') mountWallLab(root);
   mountLevelCanvases(root, level => (
     route.screen === 'workspace' && route.level?.id === level.id
       ? activeRun ?? initialState(level) : initialState(level)

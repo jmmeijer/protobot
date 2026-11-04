@@ -31,6 +31,19 @@ export function validateLevel(level:Level):string[] {
       if(!inside(object.x,object.y))issues.push(label+': object '+object.label+' buiten het veld');
       else if(unsafe.has(map[object.y][object.x]))issues.push(label+': object '+object.label+' op gevaarlijke tegel');
     }
+    const featurePlaces=new Set<string>();
+    for(const feature of current.wallFeatures??[]){
+      const key=feature.x+','+feature.y;
+      if(featurePlaces.has(key))issues.push(label+': dubbele muuropening');
+      featurePlaces.add(key);
+      if(!inside(feature.x,feature.y))
+        issues.push(label+': muuropening buiten het veld');
+      else if(unsafe.has(map[feature.y][feature.x]))
+        issues.push(label+': muuropening moet op begaanbaar terrein liggen');
+      if(!['doorway','damaged_opening'].includes(feature.type) ||
+          ![0,1,2,3].includes(feature.rotation))
+        issues.push(label+': ongeldig muuronderdeel of rotatie');
+    }
     if(inside(current.start.x,current.start.y)&&inside(current.goal.x,current.goal.y)){
       const found=new Set<string>();
       const queue=[[current.start.x,current.start.y]];

@@ -9,11 +9,18 @@ export type BlockType =
   | 'pb_terrain_ahead'|'pb_terrain_under'|'pb_until'|'pb_on_goal';
 export type MissionObjectType = 'radio'|'geiger'|'relay'|'beacon'|'sensor'|'pump';
 export interface MissionObject {type:MissionObjectType; x:number; y:number; label:string}
+/** Visual architecture only: the cell underneath remains passable. */
+export interface WallFeature {
+  type:'doorway'|'damaged_opening';
+  x:number; y:number;
+  rotation:0|1|2|3;
+}
 export interface MapVariant {
   id:string; label:string; tiles:Tile[][];
   start:{x:number;y:number;direction:Direction};
   goal:{x:number;y:number};
   objects:MissionObject[];
+  wallFeatures?:WallFeature[];
 }
 export interface Block { id: string; command: Command }
 export interface Level {
@@ -35,6 +42,7 @@ export interface Level {
   hints?: string[];
   successLog?: string;
   objects?: MissionObject[];
+  wallFeatures?: WallFeature[];
   variants?: MapVariant[];
   starterWorkspace?: object;
 }
@@ -55,7 +63,8 @@ export function levelVariant(level: Level, index: number): Level {
   if (index===0)return level;
   const variant=level.variants?.[index-1];
   if (!variant)throw new RangeError('Onbekende kaartvariant '+index+' voor '+level.id);
-  return {...level, tiles:variant.tiles, start:variant.start, goal:variant.goal, objects:variant.objects};
+  return {...level, tiles:variant.tiles, start:variant.start, goal:variant.goal,
+    objects:variant.objects, wallFeatures:variant.wallFeatures};
 }
 export function variantLabel(level:Level,index:number):string {
   return index===0?'Hoofdkaart':level.variants?.[index-1]?.label ?? 'Onbekende kaart';

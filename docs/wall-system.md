@@ -1,0 +1,57 @@
+# Modulaire industriële muren — ProtoBot
+
+Dit is een eerste, bewust visueel te beoordelen implementatie van de nieuwe **zesdelige structurele muur-atlas**. Kaartlogica en robotbotsingen blijven onafhankelijk van de muurafbeeldingen.
+
+## Assets
+
+- `src/assets/wall-structure.webp`: 768 × 512 pixels, 3 kolommen × 2 rijen, 256 × 256 px per cel.
+- Bron: de transparante muur-atlas uit de ProtoBot-ontwerpsessie, geoptimaliseerd naar WebP.
+- Vakken (kolom, rij):
+  - `straight` (0,0)
+  - `inner_corner` (1,0)
+  - `outer_corner` (2,0)
+  - `end_cap` (0,1)
+  - `doorway` (1,1)
+  - `damaged_opening` (2,1)
+
+De basismuren hebben nu **geen automatisch gerandomiseerde decoraties**. Buizen, posters, lampen, radiatoren en puin zijn de volgende, zelfstandige laag. De huidige atlas heeft wel ingebakken slijtage en enkele kleine metalen constructiedetails; voor een volledig naadloze set zullen deze nog genormaliseerd moeten worden.
+
+## Muurselectie
+
+`src/wall-topology.ts` kiest de zichtbare structurele sprite. De selectie is een pure functie van vier muur-buren:
+
+- Twee tegenoverliggende muur-buren: recht segment, gedraaid afhankelijk van de beloopbare zijde.
+- Twee aangrenzende muur-buren: binnen- of buitenhoek; de diagonale hoekcel beslist.
+- Eén buur of geïsoleerde muur: eindstuk.
+- Drie muur-buren: recht segment langs de zichtbare muurzijde.
+- Vier muur-buren: alleen onderliggende materiaaltextuur; geen onnodige decoratie in het binnenste van een massieve muur.
+
+Alle rotaties zijn stappen van 90 graden. De atlas wordt op 128 × 128 px per rastervak getekend, met nearest-neighbour zonder smoothing. Muurstructuren worden op de offscreen statische Canvas-laag gebouwd, zodat de bestaande robotanimatie niet opnieuw getekend of onderbroken hoeft te worden.
+
+De natuurlijke grotwanden van `meetpost` en `lavagrot` blijven bewust hun eerdere materiaal gebruiken. De nieuwe onderdelen worden op technische/industriële muurcellen geplaatst.
+
+## Lange gang
+
+Missie `lange-gang`, revisie 2:
+
+```text
+#########
+ssssssss#
+#########
+```
+
+De oorspronkelijke start (1,1), bestemming (7,1), richting en opdracht **herhaal 6 keer: vooruit** blijven onveranderd. Cel (0,1) is nu een **begaanbare westelijke ingang**. Het deurkader wordt als een apart `wallFeatures`-object met rotatie 90° bovenop deze vloertegel getekend. Het is niet langer een solide obstakel.
+
+## Muurlab
+
+Open `#/wall-lab` op GitHub Pages om de zes losse delen in vier rotaties te vergelijken en de lange gang automatisch samengesteld te bekijken. Het Muurlab is ook bereikbaar vanaf het missieoverzicht, onafhankelijk van ontgrendelde missies.
+
+Handmatige controles:
+
+1. Sluiten rechte wanden en hoeken visueel op elkaar aan, zonder transparante kieren?
+2. Klopt de schaduw/lichtval na een rotatie van 90°, 180° en 270°?
+3. Blijft de opening van het deurkader vrij en zijn beide zijden duidelijk zichtbaar?
+4. Bedekt de muur de gameplay-vloertegels niet of leidt de spritevorm tot visuele verwarring?
+5. Is de huidige afbeelding voldoende orthografisch? De bronafbeelding bevat mogelijk perspectief-effecten.
+
+**Belangrijk:** de programmatests controleren atlasindeling, geometrische selectie, deurpositie en bereikbaarheid, niet of gegenereerde afbeeldingen pixelperfect aansluiten. Daarvoor is de Muurlab-browserpreview bedoeld.
