@@ -59,7 +59,7 @@ export function wallSpriteForTile(
       {rotation:3 as QuarterTurn,diagonal:[1,1] as const};
     // A floor in the elbow distinguishes a re-entrant (inside) from
     // an exterior (solid) corner; both share the same rotation system.
-    return {piece: floor(...corner.diagonal) ? 'inner_corner' : 'outer_corner',
+    return {piece: floor(corner.diagonal[0], corner.diagonal[1]) ? 'inner_corner' : 'outer_corner',
       rotation:corner.rotation};
   }
   if (count===1 || count===0) {
