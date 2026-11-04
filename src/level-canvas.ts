@@ -8,7 +8,8 @@ const STATIC_TILE_SIZE = 128;
 const ATLAS_URL = new URL('./assets/terrain-atlas.webp', import.meta.url).href;
 const ROBOT_URL = new URL('./assets/protobot-topdown.webp', import.meta.url).href;
 const PROPS_URL = new URL('./assets/mission-props.webp', import.meta.url).href;
-type Assets = { atlas: HTMLImageElement | null; robot: HTMLImageElement | null; props: HTMLImageElement | null };
+const WALLS_URL = new URL('./assets/wall-materials.webp', import.meta.url).href;
+type Assets = { atlas: HTMLImageElement | null; robot: HTMLImageElement | null; props: HTMLImageElement | null; walls: HTMLImageElement | null };
 let assetsPromise: Promise<Assets> | undefined;
 let cleanup: (() => void) | undefined;
 
@@ -45,8 +46,8 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
 }
 function loadAssets(): Promise<Assets> {
   return assetsPromise ??= Promise.all([
-    loadImage(ATLAS_URL), loadImage(ROBOT_URL), loadImage(PROPS_URL)
-  ]).then(([atlas, robot, props]) => ({ atlas, robot, props }));
+    loadImage(ATLAS_URL), loadImage(ROBOT_URL), loadImage(PROPS_URL), loadImage(WALLS_URL)
+  ]).then(([atlas, robot, props, walls]) => ({ atlas, robot, props, walls }));
 }
 
 const fallbackColors: Record<TerrainName, string> = {
@@ -85,23 +86,31 @@ function drawSurveyGrid(context: CanvasRenderingContext2D, columns: number, rows
   context.restore();
 }
 
-function drawWall(context: CanvasRenderingContext2D, x: number, y: number, size: number) {
-  const pad = size * 0.11;
-  context.fillStyle = '#171f24b8';
-  context.fillRect(x * size + pad * 1.3, y * size + pad * 1.6, size - 2 * pad, size - 2 * pad);
-  context.fillStyle = '#404c52';
-  context.fillRect(x * size + pad, y * size + pad, size - 2 * pad, size - 2 * pad);
-  context.fillStyle = '#6c787c';
-  context.fillRect(x * size + pad, y * size + pad, size - 2 * pad, pad * 0.35);
-  context.fillStyle = '#20282e';
-  context.fillRect(x * size + pad, y * size + size - pad * 1.5, size - 2 * pad, pad * 0.5);
-  context.strokeStyle = '#1c282d';
-  context.lineWidth = Math.max(1, size * 0.035);
-  context.beginPath();
-  context.moveTo(x * size + size * .32, y * size + size * .26);
-  context.lineTo(x * size + size * .58, y * size + size * .53);
-  context.lineTo(x * size + size * .72, y * size + size * .44);
-  context.stroke();
+function drawWall(context: CanvasRenderingContext2D, level: Level, x: number, y: number,
+  size: number, material?: HTMLImageElement | null) {
+  const left = x * size;
+  const top = y * size;
+  const rock = level.id === 'meetpost' || level.id === 'lavagrot';
+  if (material) {
+    // Each material spans a 2×2 group of cells in world coordinates.
+    const sx = (rock ? 0 : 256) + (x % 2) * 128;
+    context.drawImage(material, sx, (y % 2) * 128, 128, 128, left, top, size, size);
+  } else {
+    context.fillStyle = rock ? '#344149' : '#42443c';
+    context.fillRect(left, top, size, size);
+  }
+  // Expose the wall face only where it borders the playable map.
+  const open = (cx: number, cy: number) => {
+    const tile = level.tiles[cy]?.[cx];
+    return tile !== undefined && tile !== 'wall';
+  };
+  const rim = Math.max(1, Math.round(size * .04));
+  context.fillStyle = '#b5b2a580';
+  if (open(x, y - 1)) context.fillRect(left, top, size, rim);
+  if (open(x - 1, y)) context.fillRect(left, top, rim, size);
+  context.fillStyle = '#111a20bb';
+  if (open(x, y + 1)) context.fillRect(left, top + size - 2 * rim, size, 2 * rim);
+  if (open(x + 1, y)) context.fillRect(left + size - rim, top, rim, size);
 }
 function drawGoal(context: CanvasRenderingContext2D, level: Level, size: number) {
   const cx = (level.goal.x + .5) * size;
@@ -279,11 +288,10 @@ export function mountLevelCanvases(
       else fallbackTerrain(backgroundContext, terrainMap, STATIC_TILE_SIZE);
       for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
         if (level.tiles[y][x] !== 'wall') continue;
+        drawWall(backgroundContext, level, x, y, STATIC_TILE_SIZE, loaded?.walls);
         if (level.id === 'lange-gang' && loaded?.props) {
           const wallVariant = (x + 3 * y) % 4;
           drawProp(backgroundContext, loaded.props, wallVariant, 0, x * STATIC_TILE_SIZE, y * STATIC_TILE_SIZE, STATIC_TILE_SIZE);
-        } else {
-          drawWall(backgroundContext, x, y, STATIC_TILE_SIZE);
         }
       }
       drawGoal(backgroundContext, level, STATIC_TILE_SIZE);
