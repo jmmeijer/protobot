@@ -14,3 +14,23 @@
 @media(max-width:600px){.wall-lab-gallery{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:10px}.wall-lab-description{padding:12px}}
 
 .lab-links{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:23px}
+
+/* The experimental Work sprite comparison, laid out mobile-first. */
+.wall-lab .section-heading{min-width:0;max-width:100%;display:block}
+.wall-lab .section-heading>div{min-width:0;max-width:100%}
+.wall-lab .section-heading h1{font-size:clamp(32px,9vw,66px);max-width:100%;overflow-wrap:anywhere}
+.wall-lab .section-heading p{max-width:68ch;overflow-wrap:break-word}
+.wall-lab .wall-lab-panel{width:100%;min-width:0}
+.wall-lab .panel-top{flex-wrap:wrap;overflow-wrap:anywhere}
+.wall-lab .wall-lab-description{max-width:100%;overflow-wrap:break-word}
+.wall-lab .wall-lab-map-wrap{max-width:calc(100% - 32px)}
+.wall-lab .wall-lab-message{font-size:clamp(12px,2.8vw,14px);overflow-wrap:break-word;line-height:1.6}
+.wall-lab-topdown-gallery{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:650px){
+ .wall-lab .wall-lab-panel{overflow:hidden}
+ .wall-lab .section-heading{margin:10px 0 22px}
+ .wall-lab .wall-lab-map-wrap{margin:0 10px;max-width:calc(100% - 20px)}
+ .wall-lab .panel-top{padding:12px;gap:6px;min-height:0}
+ .wall-lab .panel-top>span{min-width:0}
+ .wall-lab-topdown-gallery{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
