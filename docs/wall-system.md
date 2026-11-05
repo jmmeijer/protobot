@@ -80,3 +80,25 @@ fotografische sprite-randen.
 geen afgewerkte productie-muurset. Eventuele stijlverschillen tussen de programmeerbare
 basis en de decoraties moeten eerst worden beoordeeld. De kast en het puin zijn
 nu alleen in het Muurlab te zien; obstakels/collisions zijn niet aangepast.
+
+## Hybride productieproef: tegelgrens in plaats van middenlijn
+
+Voor missie 4 (`lange-gang`) wordt de eerder geteste middenlijn-renderer
+vervangen door `drawHybridWallFaces`. De renderer zoekt de aaneengesloten
+**zichtbare grens tussen een onbegaanbare muurcel en een beloopbare vloercel**
+en tekent voor ieder doorlopend stuk één metaal-/betonband. De band gebruikt
+echte textuurfragmenten van de Work-bovenaanzicht-atlas, maar geen ingebakken
+eindpilaren. De vier oriëntaties zijn één geometrie met 90°-rotaties.
+
+De twee rechterhoeken in de lange gang zijn gezamenlijke eindpunten van
+respectievelijk horizontale en verticale grenssegmenten. Op die punten komt
+één verbinding; op de linker twee vrije eindpunten een eenvoudige deurpost.
+Radiator, wandpaneel en rooster worden als afzonderlijke overlays geplaatst.
+
+De botsingskaart, de startpositie (1,1), het doel (7,1), de programmeeropdracht,
+de Blockly-werkruimte en de robotanimaties blijven onveranderd.
+
+Het Muurlab toont zowel de nieuwe hybride gang als de oude complete
+muursprites. Pas na visuele beoordeling kan deze techniek naar andere
+technische levels worden uitgebreid. De atlas zelf is nog niet als strikt
+naadloze tileset bewezen.

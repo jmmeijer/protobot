@@ -2,7 +2,7 @@ import './wall-lab.css';
 import { levelById } from './game.ts';
 import { createTerrainPainter, levelTerrain } from './terrain-canvas';
 import { drawGoal, drawWall, drawWallStructure } from './level-canvas';
-import {TOPDOWN_ATLAS, drawJoinedWall, drawWallDetail, sampleWallDetail} from './wall-topdown-study';
+import {TOPDOWN_ATLAS, drawHybridWallFaces, drawTopdownEntrance, drawWallDetail, sampleWallDetail} from './wall-topdown-study';
 import {
   WALL_ATLAS_CELLS, wallSpriteForTile, type QuarterTurn, type WallPiece
 } from './wall-topology.ts';
@@ -42,13 +42,13 @@ export function wallLabMarkup():string {
     '<div class="wall-lab-gallery wall-lab-topdown-gallery">'+
       TOPDOWN_ATLAS.map(part=>'<figure class="wall-lab-piece"><canvas width="168" height="168" data-topdown-piece="'+
         part.id+'" aria-label="'+part.label+'"></canvas><figcaption>'+part.label+'</figcaption></figure>').join('')+
-    '</div><div class="panel-top"><span>AANSLUITPROEF / DOORLOPENDE BASIS</span><span>9 × 3</span></div>' +
-    '<p class="wall-lab-description">De wandverbindingen zijn hier programmeerbaar en sluiten exact op tegelgrenzen aan. Drie losse details komen uit het nieuwe bovenaanzicht; het zijn dus niet langer complete platen die telkens opnieuw beginnen.</p>' +
+    '</div><div class="panel-top"><span>HYBRIDE MUUR / BOVENAANZICHT</span><span>9 × 3</span></div>' +
+    '<p class="wall-lab-description">De beton- en metaalranden volgen de grens van vloer en muur. Het oppervlak komt uit de Work-sprites; radiator en panelen zijn losse decoraties, zonder dubbele eindpilaren.</p>' +
     '<div class="wall-lab-map-wrap"><canvas id="wall-lab-topdown" width="1152" height="384" role="img" aria-label="Test van een doorlopende muur met losse radiatoren en wanddecoraties"></canvas></div>' +
     '<p class="wall-lab-message" id="topdown-study-message" aria-live="polite">Proefsprite-atlas laden…</p>' +
     '</section>' +
-    '<section class="panel wall-lab-panel"><div class="panel-top"><span>LANGEGANG / HUIDIGE MUURSET</span><span>9 × 3</span></div>' +
-    '<p class="wall-lab-description">Dezelfde muurselectie en rotaties als in de missie-renderer. Linksboven en linksonder staan eindstukken, rechts komen hoeken en langs de gang liggen rechte wanddelen.</p>' +
+    '<section class="panel wall-lab-panel"><div class="panel-top"><span>LANGEGANG / OUDE MUURSET (VERGELIJKING)</span><span>9 × 3</span></div>' +
+    '<p class="wall-lab-description">Vergelijking met de vorige zesdelige muurset. De speelbare lange gang gebruikt nu de hybride renderer uit het voorbeeld hierboven.</p>' +
     '<div class="wall-lab-map-wrap"><canvas id="wall-lab-corridor" width="1152" height="384" role="img" aria-label="Voorbeeld van de lange gang met deuropening links"></canvas></div>' +
     '<p id="wall-lab-message" class="wall-lab-message" aria-live="polite">Sprites laden…</p>' +
     '</section><a class="btn secondary" href="#/levels">TERUG NAAR MISSIEOVERZICHT</a></main>';
@@ -144,9 +144,13 @@ export function mountWallLab(root:HTMLElement) {
       }
       for(let y=0;y<previewLevel.tiles.length;y++)for(let x=0;x<previewLevel.tiles[y].length;x++){
         if(previewLevel.tiles[y][x]!=='wall')continue;
-        drawWall(studyCtx,previewLevel,x,y,tileSize,material);
-        drawJoinedWall(studyCtx,previewLevel.tiles,x,y,tileSize);
+        drawWall(studyCtx,previewLevel,x,y,tileSize,material,false);
       }
+      drawHybridWallFaces(studyCtx,previewLevel.tiles,tileSize,topdown);
+      for(const feature of previewLevel.wallFeatures??[])
+        if(feature.type==='doorway')
+          drawTopdownEntrance(studyCtx,previewLevel.tiles,
+            feature.x,feature.y,tileSize,topdown);
       if(topdown){
         for(let y=0;y<previewLevel.tiles.length;y++)for(let x=0;x<previewLevel.tiles[y].length;x++){
           const detail=sampleWallDetail(previewLevel.id,x,y);
@@ -157,7 +161,7 @@ export function mountWallLab(root:HTMLElement) {
       if(robot)studyCtx.drawImage(robot,(previewLevel.start.x+.1)*tileSize,
         (previewLevel.start.y+.1)*tileSize,tileSize*.8,tileSize*.8);
       if(studyMessage) studyMessage.textContent=topdown
-        ? 'Proef geladen: naadloze verbindingen uit Canvas, Work-sprites als losse decoraties. Vergelijk met de bestaande gang hieronder.'
+        ? 'Hybride muur geladen: doorlopende betonnen randen met Work-texturen, hoeken en een doorgang links. Vergelijk hieronder met de oude set.'
         : 'De experimentele atlas kon niet worden geladen.';
     }
     const level=levelById('lange-gang');
