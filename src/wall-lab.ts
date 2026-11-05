@@ -2,6 +2,7 @@ import './wall-lab.css';
 import { levelById } from './game.ts';
 import { createTerrainPainter, levelTerrain } from './terrain-canvas';
 import { drawGoal, drawWall, drawWallStructure } from './level-canvas';
+import {TOPDOWN_ATLAS, drawJoinedWall, drawWallDetail, sampleWallDetail} from './wall-topdown-study';
 import {
   WALL_ATLAS_CELLS, wallSpriteForTile, type QuarterTurn, type WallPiece
 } from './wall-topology.ts';
@@ -10,6 +11,7 @@ const structureUrl = new URL('./assets/wall-structure.webp', import.meta.url).hr
 const materialsUrl = new URL('./assets/wall-materials.webp', import.meta.url).href;
 const terrainUrl = new URL('./assets/terrain-atlas.webp', import.meta.url).href;
 const robotUrl = new URL('./assets/protobot-topdown.webp', import.meta.url).href;
+const topdownUrl = new URL('./assets/wall-topdown-study.webp', import.meta.url).href;
 
 const parts: Array<{type:WallPiece,label:string}> = [
   {type:'straight',label:'Recht segment'},
@@ -34,7 +36,18 @@ export function wallLabMarkup():string {
     parts.map(part=>'<figure class="wall-lab-piece"><canvas width="168" height="168" data-wall-piece="'+
       part.type+'" aria-label="'+part.label+'"></canvas><figcaption>'+part.label+'</figcaption></figure>').join('')+
     '</div></section>' +
-    '<section class="panel wall-lab-panel"><div class="panel-top"><span>LANGEGANG / ECHTE KAARTLOGICA</span><span>9 × 3</span></div>' +
+    '<section class="panel wall-lab-panel wall-topdown-prototype">' +
+    '<div class="panel-top"><span>BOVENAANZICHT / WORK-SPRITES</span><span>EXPERIMENTEEL</span></div>' +
+    '<p class="wall-lab-description">Acht opgeschoonde afbeeldingen, los van de oude muurset. Een doorlopende basiswand moet de aansluitingen maken; radiatoren en panelen zijn slechts decoraties.</p>' +
+    '<div class="wall-lab-gallery wall-lab-topdown-gallery">'+
+      TOPDOWN_ATLAS.map(part=>'<figure class="wall-lab-piece"><canvas width="168" height="168" data-topdown-piece="'+
+        part.id+'" aria-label="'+part.label+'"></canvas><figcaption>'+part.label+'</figcaption></figure>').join('')+
+    '</div><div class="panel-top"><span>AANSLUITPROEF / DOORLOPENDE BASIS</span><span>9 × 3</span></div>' +
+    '<p class="wall-lab-description">De wandverbindingen zijn hier programmeerbaar en sluiten exact op tegelgrenzen aan. Drie losse details komen uit het nieuwe bovenaanzicht; het zijn dus niet langer complete platen die telkens opnieuw beginnen.</p>' +
+    '<div class="wall-lab-map-wrap"><canvas id="wall-lab-topdown" width="1152" height="384" role="img" aria-label="Test van een doorlopende muur met losse radiatoren en wanddecoraties"></canvas></div>' +
+    '<p class="wall-lab-message" id="topdown-study-message" aria-live="polite">Proefsprite-atlas laden…</p>' +
+    '</section>' +
+    '<section class="panel wall-lab-panel"><div class="panel-top"><span>LANGEGANG / HUIDIGE MUURSET</span><span>9 × 3</span></div>' +
     '<p class="wall-lab-description">Dezelfde muurselectie en rotaties als in de missie-renderer. Linksboven en linksonder staan eindstukken, rechts komen hoeken en langs de gang liggen rechte wanddelen.</p>' +
     '<div class="wall-lab-map-wrap"><canvas id="wall-lab-corridor" width="1152" height="384" role="img" aria-label="Voorbeeld van de lange gang met deuropening links"></canvas></div>' +
     '<p id="wall-lab-message" class="wall-lab-message" aria-live="polite">Sprites laden…</p>' +
@@ -66,6 +79,9 @@ export function mountWallLab(root:HTMLElement) {
   const gallery=[...root.querySelectorAll<HTMLCanvasElement>('[data-wall-piece]')];
   const canvas=root.querySelector<HTMLCanvasElement>('#wall-lab-corridor');
   const status=root.querySelector<HTMLElement>('#wall-lab-message');
+  const studyCanvas=root.querySelector<HTMLCanvasElement>('#wall-lab-topdown');
+  const studyMessage=root.querySelector<HTMLElement>('#topdown-study-message');
+  const studyGallery=[...root.querySelectorAll<HTMLCanvasElement>('[data-topdown-piece]')];
   if(!canvas||!gallery.length)return;
   let disposed=false;
   let turn:QuarterTurn=0;
@@ -98,11 +114,52 @@ export function mountWallLab(root:HTMLElement) {
 
   void Promise.all([
     loadImage(structureUrl),loadImage(materialsUrl),
-    loadImage(terrainUrl),loadImage(robotUrl)
-  ]).then(([structure,material,terrain,robot])=>{
+    loadImage(terrainUrl),loadImage(robotUrl),loadImage(topdownUrl)
+  ]).then(([structure,material,terrain,robot,topdown])=>{
     if(disposed)return;
     art=structure;
     drawGallery();
+    if(topdown){
+      for(const cell of studyGallery){
+        const ctx=cell.getContext('2d');
+        if(!ctx)continue;
+        ctx.clearRect(0,0,168,168);
+        checkerboard(ctx,168);
+        const part=TOPDOWN_ATLAS.find(v=>v.id===cell.dataset.topdownPiece);
+        if(part){
+          ctx.imageSmoothingEnabled=false;
+          ctx.drawImage(topdown,part.x*256,part.y*256,256,256,0,0,168,168);
+        }
+      }
+    }
+    const previewLevel=levelById('lange-gang');
+    const studyCtx=studyCanvas?.getContext('2d');
+    if(studyCtx&&studyCanvas&&previewLevel){
+      const tileSize=128;
+      studyCtx.clearRect(0,0,studyCanvas.width,studyCanvas.height);
+      if(terrain) createTerrainPainter().draw(studyCtx,terrain,levelTerrain(previewLevel.tiles),tileSize);
+      else{
+        studyCtx.fillStyle='#39444a';
+        studyCtx.fillRect(0,0,studyCanvas.width,studyCanvas.height);
+      }
+      for(let y=0;y<previewLevel.tiles.length;y++)for(let x=0;x<previewLevel.tiles[y].length;x++){
+        if(previewLevel.tiles[y][x]!=='wall')continue;
+        drawWall(studyCtx,previewLevel,x,y,tileSize,material);
+        drawJoinedWall(studyCtx,previewLevel.tiles,x,y,tileSize);
+      }
+      if(topdown){
+        for(let y=0;y<previewLevel.tiles.length;y++)for(let x=0;x<previewLevel.tiles[y].length;x++){
+          const detail=sampleWallDetail(previewLevel.id,x,y);
+          if(detail) drawWallDetail(studyCtx,topdown,detail,x,y,tileSize);
+        }
+      }
+      drawGoal(studyCtx,previewLevel,tileSize);
+      if(robot)studyCtx.drawImage(robot,(previewLevel.start.x+.1)*tileSize,
+        (previewLevel.start.y+.1)*tileSize,tileSize*.8,tileSize*.8);
+      if(studyMessage) studyMessage.textContent=topdown
+        ? 'Proef geladen: naadloze verbindingen uit Canvas, Work-sprites als losse decoraties. Vergelijk met de bestaande gang hieronder.'
+        : 'De experimentele atlas kon niet worden geladen.';
+    }
     const level=levelById('lange-gang');
     const ctx=canvas.getContext('2d');
     if(!ctx||!level)return;

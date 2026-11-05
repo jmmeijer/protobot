@@ -55,3 +55,28 @@ Handmatige controles:
 5. Is de huidige afbeelding voldoende orthografisch? De bronafbeelding bevat mogelijk perspectief-effecten.
 
 **Belangrijk:** de programmatests controleren atlasindeling, geometrische selectie, deurpositie en bereikbaarheid, niet of gegenereerde afbeeldingen pixelperfect aansluiten. Daarvoor is de Muurlab-browserpreview bedoeld.
+
+## Experimenteel bovenaanzicht uit Work
+
+De nieuwe kandidaat-sprites staan in `src/assets/wall-topdown-study.webp`:
+acht vakken van 256 × 256 pixels in een 4 × 2 atlas. De oorspronkelijke afbeelding had
+een lichte achtergrond, die met een gecontroleerde chroma-key is verwijderd.
+Deze atlas is bedoeld om stijl en perspectief te testen, niet als bewijs van naadloze aansluiting.
+
+De huidige zesdelige structurele atlas blijft ongewijzigd in de echte levels.
+Via `#/wall-lab` is een nieuwe vergelijkingssectie toegevoegd met:
+- de acht losse bovenaanzicht-sprites (zes muurvarianten, een kast en puin);
+- een proef met een **doorlopende geometrische muur** en drie uitgesneden technische
+  decoraties uit de nieuwe atlas;
+- ter vergelijking daaronder de huidige muurweergave van de lange gang.
+
+De verbindingsgeometrie wordt in `src/wall-topdown-study.ts` getekend op basis van
+buren in de oorspronkelijke murenkaart. Alle lijnen eindigen exact op het midden van
+de tegelgrens. Bevestigingsmiddelen worden alleen aan échte uiteinden getekend, niet
+op iedere cel. Dit maakt de basis technisch aansluitbaar zonder te vertrouwen op
+fotografische sprite-randen.
+
+**Nog niet productiegeschikt:** het experiment is een visuele prototype-renderer,
+geen afgewerkte productie-muurset. Eventuele stijlverschillen tussen de programmeerbare
+basis en de decoraties moeten eerst worden beoordeeld. De kast en het puin zijn
+nu alleen in het Muurlab te zien; obstakels/collisions zijn niet aangepast.
