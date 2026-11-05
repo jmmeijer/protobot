@@ -4,6 +4,7 @@ import { createTerrainPainter, levelTerrain } from './terrain-canvas';
 import type { TerrainMap, TerrainName } from './terrain-model';
 import { poseAt, restingPose, type RobotPose } from './robot-motion';
 import { WALL_ATLAS_CELLS, wallSpriteForTile, type WallSprite } from './wall-topology.ts';
+import { drawHybridWallFaces, drawTopdownEntrance, drawWallDetail, sampleWallDetail } from './wall-topdown-study';
 
 const STATIC_TILE_SIZE = 128;
 const ATLAS_URL = new URL('./assets/terrain-atlas.webp', import.meta.url).href;
@@ -11,7 +12,8 @@ const ROBOT_URL = new URL('./assets/protobot-topdown.webp', import.meta.url).hre
 const PROPS_URL = new URL('./assets/mission-props.webp', import.meta.url).href;
 const WALLS_URL = new URL('./assets/wall-materials.webp', import.meta.url).href;
 const WALL_STRUCTURE_URL = new URL('./assets/wall-structure.webp', import.meta.url).href;
-type Assets = { atlas: HTMLImageElement | null; robot: HTMLImageElement | null; props: HTMLImageElement | null; walls: HTMLImageElement | null; structure: HTMLImageElement | null };
+const TOPDOWN_URL = new URL('./assets/wall-topdown-study.webp', import.meta.url).href;
+type Assets = { atlas: HTMLImageElement | null; robot: HTMLImageElement | null; props: HTMLImageElement | null; walls: HTMLImageElement | null; structure: HTMLImageElement | null; topdown: HTMLImageElement | null };
 let assetsPromise: Promise<Assets> | undefined;
 let cleanup: (() => void) | undefined;
 
@@ -49,9 +51,9 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
 function loadAssets(): Promise<Assets> {
   return assetsPromise ??= Promise.all([
     loadImage(ATLAS_URL), loadImage(ROBOT_URL), loadImage(PROPS_URL),
-    loadImage(WALLS_URL), loadImage(WALL_STRUCTURE_URL)
-  ]).then(([atlas, robot, props, walls, structure]) =>
-    ({ atlas, robot, props, walls, structure }));
+    loadImage(WALLS_URL), loadImage(WALL_STRUCTURE_URL), loadImage(TOPDOWN_URL)
+  ]).then(([atlas, robot, props, walls, structure, topdown]) =>
+    ({ atlas, robot, props, walls, structure, topdown }));
 }
 
 const fallbackColors: Record<TerrainName, string> = {
@@ -91,7 +93,7 @@ function drawSurveyGrid(context: CanvasRenderingContext2D, columns: number, rows
 }
 
 export function drawWall(context: CanvasRenderingContext2D, level: Level, x: number, y: number,
-  size: number, material?: HTMLImageElement | null) {
+  size: number, material?: HTMLImageElement | null, showRim = true) {
   const left = x * size;
   const top = y * size;
   const rock = level.id === 'meetpost' || level.id === 'lavagrot';
@@ -103,6 +105,8 @@ export function drawWall(context: CanvasRenderingContext2D, level: Level, x: num
     context.fillStyle = rock ? '#344149' : '#42443c';
     context.fillRect(left, top, size, size);
   }
+  // A hybrid boundary renderer may supply its own continuous face.
+  if (!showRim) return;
   // Expose the wall face only where it borders the playable map.
   const open = (cx: number, cy: number) => {
     const tile = level.tiles[cy]?.[cx];
@@ -307,20 +311,33 @@ export function mountLevelCanvases(
       else fallbackTerrain(backgroundContext, terrainMap, STATIC_TILE_SIZE);
       for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
         if (level.tiles[y][x] !== 'wall') continue;
-        drawWall(backgroundContext, level, x, y, STATIC_TILE_SIZE, loaded?.walls);
-        // Rock cave walls keep their natural material; industrial walls get
-        // a topology-selected structure. Do not stamp arbitrary prop variants.
-        if (level.id !== 'meetpost' && level.id !== 'lavagrot') {
+        drawWall(backgroundContext, level, x, y, STATIC_TILE_SIZE, loaded?.walls,
+          level.id !== 'lange-gang');
+        // Existing levels keep the legacy wall design until the hybrid
+        // visual test has been accepted. Only the corridor switches now.
+        if (level.id !== 'lange-gang' && level.id !== 'meetpost' && level.id !== 'lavagrot') {
           const part = wallSpriteForTile(level.tiles, x, y);
           if (part) drawWallStructure(backgroundContext,loaded?.structure,
             part,x,y,STATIC_TILE_SIZE);
         }
       }
-      // A doorway is placed on a *passable* tile; its frame is purely visual.
-      for (const feature of level.wallFeatures ?? []) {
-        drawWallStructure(backgroundContext,loaded?.structure,
-          {piece:feature.type,rotation:feature.rotation},
-          feature.x,feature.y,STATIC_TILE_SIZE);
+      if (level.id === 'lange-gang') {
+        drawHybridWallFaces(backgroundContext,level.tiles,STATIC_TILE_SIZE,loaded?.topdown);
+        for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+          const detail=sampleWallDetail(level.id,x,y);
+          if(detail && loaded?.topdown)
+            drawWallDetail(backgroundContext,loaded.topdown,detail,x,y,STATIC_TILE_SIZE);
+        }
+        for(const feature of level.wallFeatures ?? [])
+          if(feature.type==='doorway')
+            drawTopdownEntrance(backgroundContext,level.tiles,
+              feature.x,feature.y,STATIC_TILE_SIZE,loaded?.topdown);
+      } else {
+        // A doorway is visual only: the underlying tile controls collision.
+        for (const feature of level.wallFeatures ?? [])
+          drawWallStructure(backgroundContext,loaded?.structure,
+            {piece:feature.type,rotation:feature.rotation},
+            feature.x,feature.y,STATIC_TILE_SIZE);
       }
       drawGoal(backgroundContext, level, STATIC_TILE_SIZE);
       drawMissionObjects(backgroundContext, level, STATIC_TILE_SIZE, loaded?.props ?? null);
