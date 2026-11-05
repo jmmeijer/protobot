@@ -55,7 +55,7 @@ mission({
 mission({
   id:'laatste-wacht',revision:1,number:2,title:'De laatste wacht',subtitle:'Een verlaten wachthuis',
   story:'Het wachthuis is verlaten. Binnen ligt een veldtas met een geigerteller.',
-  objective:'Slinger langs de muur en bereik de veldtas.',
+  objective:'Rijd langs de muur naar de veldtas.',
   hint:'Twee keer vooruit, daarna rechtsaf naar de tas.',
   hints:['Kijk eerst naar de muur links van de route.','Loop langs de bovenkant van de kamer.','Vooruit, vooruit, rechts, vooruit.'],
   learningGoals:['Een route met bochten','Nauwkeurig draaien'],
@@ -79,7 +79,7 @@ mission({
 mission({
   id:'lange-gang',revision:2,number:4,title:'De lange gang',subtitle:'Werk slimmer, niet langer',
   story:'Een rechte onderhoudsgang voert diep onder het oude complex. Gebruik een herhaling.',
-  objective:'Rijd zes vakken vooruit met maximaal twee Blockly-blokken.',
+  objective:'Rijd zes vakken vooruit met maximaal twee blokken.',
   hint:'Zet rij vooruit binnen een herhaalblok met teller 6.',
   hints:['Een opdracht kan meer dan één keer worden uitgevoerd.','Welk blok herhaalt een actie?','Herhaal 6 keer: rij vooruit.'],
   learningGoals:['Getelde herhalingen','Compact programmeren'],
@@ -91,22 +91,22 @@ mission({
   successLog:'ONDERHOUDSLOG 04 — De lange gang is veilig. Herhaalde opdrachten zijn geoptimaliseerd.'
 }),
 mission({
-  id:'meetpost',revision:1,number:5,title:'De meetpost',subtitle:'Een patroon in de route',
-  story:'Een trapsgewijs pad voert omhoog naar een oude meetpost. Elke trede heeft dezelfde vorm.',
-  objective:'Bereik de meetpost door hetzelfde bewegingspatroon drie keer te herhalen.',
+  id:'meetpost',revision:1,number:5,title:'Het meetstation',subtitle:'Een patroon in de route',
+  story:'Een trapsgewijs pad voert omhoog naar een oud meetstation. Elke trede heeft dezelfde vorm.',
+  objective:'Bereik het meetstation door hetzelfde bewegingspatroon drie keer te herhalen.',
   hint:'Herhaal drie keer: vooruit, links, vooruit, rechts.',
   hints:['Zoek het patroon dat zich drie keer herhaalt.','Eén trede bestaat uit vier opdrachten.','Herhaal 3 keer: vooruit, links, vooruit, rechts.'],
-  learningGoals:['Meerdere opdrachten in een lus','Een herhaalpatroon herkennen'],
+  learningGoals:['Meerdere opdrachten herhalen met een herhaalblok','Een herhaalpatroon herkennen'],
   maxBlocks:5,
   tiles:terrain('######','######','###gs#','##gg##','#gg###','gg####'),
   start:robot(0,5),goal:target(3,2),defaults:[],
-  objects:[item('sensor',3,2,'Meetpost')],
-  successLog:'MEETLOG 05 — De meetpost is opnieuw bereikbaar. Het noodsignaal wordt sterker.'
+  objects:[item('sensor',3,2,'Meetstation')],
+  successLog:'MEETLOG 05 — Het meetstation is weer bereikbaar. Het noodsignaal wordt sterker.'
 }),
 mission({
-  id:'rivieroever',revision:2,number:6,title:'De overstroomde oever',subtitle:'Een beslissing onder waterdruk',
+  id:'rivieroever',revision:2,number:6,title:'De overstroomde oever',subtitle:'Kies de veilige route',
   story:'De overstroming heeft twee mogelijke overgangen achtergelaten. Hetzelfde programma moet beide routes aankunnen.',
-  objective:'Los beide kaartvarianten op met precies hetzelfde programma en een terreinvoorwaarde.',
+  objective:'Gebruik hetzelfde programma op beide kaarten. Controleer of er water voor de robot ligt.',
   hint:'Rijd eerst naar het kruispunt. Staat er water vóór de robot, draai dan rechtsaf.',
   hints:['Het tweede kruispunt is in beide kaarten anders.','Controleer of vóór de robot water ligt.','Vooruit; als water vóór mij: rechts en vooruit; anders vooruit.'],
   learningGoals:['Als/anders','Terrein vóór de robot controleren','Eén programma op twee kaarten'],
@@ -130,7 +130,7 @@ mission({
   successLog:'VEILIGHEIDSLOG 07 — De lavastroom is vermeden. Er zijn twee veilige doorgangen gevonden.'
 }),
 mission({
-  id:'waterleiding',revision:1,number:8,title:'De oude waterleiding',subtitle:'Zoek de zandmarkering',
+  id:'waterleiding',revision:1,number:8,title:'De oude waterleiding',subtitle:'Vind de drinkwaterpomp',
   story:'Een vergeten waterleiding eindigt bij een drinkwaterpomp. De zandmarkering vertelt waar ProtoBot moet stoppen.',
   objective:'Herhaal rijden tot je op zand staat. Ga daarna één vak verder naar de pomp.',
   hint:'Gebruik herhaal totdat tegel onder mij zand is.',
@@ -144,12 +144,12 @@ mission({
   successLog:'WATERLOG 08 — Drinkwaterpomp geactiveerd. De voorraad kan weer worden aangevuld.'
 }),
 mission({
-  id:'inspectieprotocol',revision:1,number:9,title:'Inspectieprotocol',subtitle:'Repareer de lus',
+  id:'inspectieprotocol',revision:1,number:9,title:'Inspectieprotocol',subtitle:'Herstel de herhaling',
   story:'Het oude inspectieprogramma rijdt een vak te ver en belandt in gevaar. Controleer de teller.',
   objective:'Herstel het voorbeeldprogramma zodat de robot vóór het water afslaat naar het inspectiepunt.',
   hint:'Twee rijbewegingen zijn genoeg voordat de robot rechtsaf moet.',
   hints:['Gebruik de stapmodus om de herhaalteller te volgen.','De standaard herhaling is te lang.','Verander de teller van 4 in 2.'],
-  learningGoals:['Een fout in een lus oplossen','Sensor en loop combineren'],
+  learningGoals:['Een fout in een herhaalblok herstellen','Sensor en herhaling combineren'],
   maxBlocks:4,
   tiles:terrain('#######','#ssssw#','###s###','#######'),
   start:robot(1,1),goal:target(3,2),defaults:[],starterWorkspace:debugStarter(),
@@ -157,19 +157,19 @@ mission({
   successLog:'INSPECTIELOG 09 — Programmeerfout hersteld. De meetapparatuur werkt weer.'
 }),
 mission({
-  id:'tegenstation',revision:1,number:10,title:'Het tegenstation',subtitle:'Herstel de verbinding',
+  id:'tegenstation',revision:1,number:10,title:'Het laatste radiostation',subtitle:'Herstel de verbinding',
   story:'Drie beschadigde doorgangen leiden naar het laatste radiostation. Eén robuust programma moet ze allemaal kunnen doorlopen.',
-  objective:'Bereik de radiopost op drie kaarten met één programma. Combineer een lus en padvrijcontrole.',
+  objective:'Gebruik hetzelfde programma om op alle drie de kaarten het radiostation te bereiken. Combineer een herhaalblok met het blok ‘pad vrij vooruit?’.',
   hint:'Herhaal totdat je het doel bereikt; rijd als het pad vrij is, anders draai rechts.',
   hints:['Er zijn verschillende aantallen rechte stukken en rechterbochten.','Gebruik herhaal totdat op doel, met een voorwaarde binnen de lus.','Herhaal totdat op doel: als pad vrij dan vooruit, anders rechts.'],
   learningGoals:['Alles combineren','Eén robuust programma op drie kaarten'],
   maxBlocks:6,
   tiles:terrain('#######','#sssw##','###s###','###s###','#######'),
   start:robot(1,1),goal:target(3,3),defaults:[],
-  objects:[item('radio',3,3,'Tegenstation')],
+  objects:[item('radio',3,3,'Radiostation')],
   variants:[
-    map('omleiding','Omleiding via zuiden',terrain('#######','#s#####','#s#####','#s#####','#######'),robot(1,1),target(1,3),[item('radio',1,3,'Tegenstation')]),
-    map('dubbele-bocht','Dubbele rechterbocht',terrain('#######','#sss###','###s###','#sss###','#######'),robot(1,1),target(1,3),[item('radio',1,3,'Tegenstation')])
+    map('omleiding','Omleiding via zuiden',terrain('#######','#s#####','#s#####','#s#####','#######'),robot(1,1),target(1,3),[item('radio',1,3,'Radiostation')]),
+    map('dubbele-bocht','Dubbele rechterbocht',terrain('#######','#sss###','###s###','#sss###','#######'),robot(1,1),target(1,3),[item('radio',1,3,'Radiostation')])
   ],
   successLog:'VERBINDINGSLOG 10 — Post West aan onbekende zender: We horen jullie. Met hoeveel zijn jullie?'
 })
